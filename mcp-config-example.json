@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "MEMORY_FILE_PATH",
+        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "/tmp/memory.json"
+      }
+    }
+  }
+}
