@@ -60,11 +60,7 @@ class AutoCodeDomain:
             logger.info("AutoCode Domain disabled in configuration")
             return
         
-        # Initialize pattern detector
-        if self.autocode_config.get("pattern_detection", {}).get("enabled", True):
-            self.pattern_detector = PatternDetector(self.autocode_config.get("pattern_detection", {}))
-            await self.pattern_detector.initialize()
-            logger.info("AutoCode Domain: Pattern detector initialized")
+        # Pattern detector will be initialized in set_command_learner method
         
         # Initialize session analyzer
         if self.autocode_config.get("session_analysis", {}).get("enabled", True):
@@ -83,6 +79,11 @@ class AutoCodeDomain:
         try:
             self.command_learner = CommandLearner(domain_manager)
             logger.info("AutoCode Domain: Command learner initialized")
+            
+            # Initialize pattern detector (needs domain manager)
+            if self.autocode_config.get("pattern_detection", {}).get("enabled", True):
+                self.pattern_detector = PatternDetector(domain_manager)
+                logger.info("AutoCode Domain: Pattern detector initialized")
             
             # Initialize history navigator (needs domain manager)
             if self.autocode_config.get("history_navigation", {}).get("enabled", True):
