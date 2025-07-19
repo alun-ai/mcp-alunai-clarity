@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",

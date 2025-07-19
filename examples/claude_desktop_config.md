@@ -28,7 +28,7 @@ Edit your `claude_desktop_config.json` file to include the Memory MCP Server:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
@@ -52,7 +52,7 @@ You can customize the Memory MCP Server by creating a configuration file at `~/.
     "port": 8000,
     "debug": false
   },
-  "memory": {
+  "alunai-memory": {
     "max_short_term_items": 100,
     "max_long_term_items": 1000,
     "max_archival_items": 10000,
@@ -81,7 +81,7 @@ Alternatively, you can run the Memory MCP Server as a Docker container using the
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -104,7 +104,7 @@ For persistent memory across Docker runs, you can mount a volume:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -210,7 +210,7 @@ You can use different embedding models by changing the `embedding.model` configu
 Adjust memory consolidation behavior:
 
 ```json
-"memory": {
+"alunai-memory": {
   "consolidation_interval_hours": 12,
   "importance_decay_rate": 0.02
 }

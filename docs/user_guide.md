@@ -45,7 +45,7 @@ Use the pre-built Docker image with AutoCodeIndex features:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -95,7 +95,7 @@ To integrate with Claude Desktop, add the Memory MCP Server to your Claude confi
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
@@ -453,7 +453,7 @@ Create a custom configuration file at `~/.memory_mcp/config/config.json`:
     "store_assistant_messages": false,
     "entity_extraction_enabled": true
   },
-  "memory": {
+  "alunai-memory": {
     "max_short_term_items": 200,
     "max_long_term_items": 2000,
     "consolidation_interval_hours": 48

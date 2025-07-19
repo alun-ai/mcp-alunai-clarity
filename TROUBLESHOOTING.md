@@ -28,7 +28,7 @@ If you're running the server locally for development:
    ```json
    {
      "mcpServers": {
-       "memory": {
+       "alunai-memory": {
          "command": "/path/to/mcp-alunai-memory/venv/bin/python",
          "args": ["-m", "memory_mcp"],
          "cwd": "/path/to/mcp-alunai-memory",
@@ -53,7 +53,7 @@ For production use, use the pre-built Docker image:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",

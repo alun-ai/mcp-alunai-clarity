@@ -24,7 +24,7 @@ Edit the file to add the following MCP server configuration:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -49,7 +49,7 @@ For local Python installation:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
@@ -244,7 +244,7 @@ The memory tiers have default size limits that you can adjust in the configurati
 
 ```json
 {
-  "memory": {
+  "alunai-memory": {
     "max_short_term_items": 100,
     "max_long_term_items": 1000,
     "max_archival_items": 10000

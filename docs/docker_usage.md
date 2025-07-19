@@ -16,7 +16,7 @@ This document explains how to run the Memory MCP Server using Docker with the re
    ```json
    {
      "mcpServers": {
-       "memory": {
+       "alunai-memory": {
          "command": "docker",
          "args": [
            "run",
@@ -79,7 +79,7 @@ For persistent memory across Docker runs, you can mount a volume:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -106,7 +106,7 @@ To enable debug logging:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",

@@ -21,7 +21,7 @@ if [ ! -f "$CONFIG_DIR/config.json" ]; then
     "port": 8000,
     "debug": false
   },
-  "memory": {
+  "alunai-memory": {
     "max_short_term_items": 100,
     "max_long_term_items": 1000,
     "max_archival_items": 10000,

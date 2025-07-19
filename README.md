@@ -49,7 +49,7 @@ Use the pre-built Docker image from GitHub Container Registry:
 ```json
 {
   "mcpServers": {
-    "memory": {
+    "alunai-memory": {
       "command": "docker",
       "args": [
         "run",
@@ -120,7 +120,7 @@ docker build -t mcp-alunai-memory .
    ```json
    {
      "mcpServers": {
-       "memory": {
+       "alunai-memory": {
          "command": "python",
          "args": ["-m", "memory_mcp"],
          "env": {
