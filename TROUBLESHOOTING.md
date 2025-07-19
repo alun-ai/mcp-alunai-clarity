@@ -1,4 +1,4 @@
-# MCP Persistent Memory Troubleshooting Guide
+# MCP AlunAI Memory Troubleshooting Guide
 
 ## Common Connection Issues
 
@@ -18,7 +18,7 @@ If you're running the server locally for development:
 
 1. **Install dependencies in a virtual environment:**
    ```bash
-   cd /path/to/mcp-persistent-memory
+   cd /path/to/mcp-alunai-memory
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    pip install -r requirements.txt
@@ -29,9 +29,9 @@ If you're running the server locally for development:
    {
      "mcpServers": {
        "memory": {
-         "command": "/path/to/mcp-persistent-memory/venv/bin/python",
+         "command": "/path/to/mcp-alunai-memory/venv/bin/python",
          "args": ["-m", "memory_mcp"],
-         "cwd": "/path/to/mcp-persistent-memory",
+         "cwd": "/path/to/mcp-alunai-memory",
          "env": {
            "MCP_CONFIG_DIR": "/Users/youruser/.memory_mcp/config",
            "MEMORY_FILE_PATH": "/Users/youruser/.memory_mcp/data/memory.json",
@@ -71,7 +71,7 @@ For production use, use the pre-built Docker image:
         "AUTOCODE_SESSION_ANALYSIS_ENABLED",
         "-e",
         "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
-        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/tmp/memory.json",
@@ -98,7 +98,7 @@ source venv/bin/activate
 MCP_CONFIG_DIR=~/.memory_mcp/config MEMORY_FILE_PATH=/tmp/test_memory.json python -m memory_mcp --debug
 
 # For Docker:
-docker run -i --rm -e MEMORY_FILE_PATH=/tmp/memory.json ghcr.io/alun-ai/mcp-persistent-memory:latest --debug
+docker run -i --rm -e MEMORY_FILE_PATH=/tmp/memory.json ghcr.io/alun-ai/mcp-alunai-memory:latest --debug
 ```
 
 **Expected output:**
@@ -160,7 +160,7 @@ export MEMORY_FILE_PATH=~/.memory_mcp/data/memory.json
 
 **Fix:** Pull the image manually:
 ```bash
-docker pull ghcr.io/alun-ai/mcp-persistent-memory:latest
+docker pull ghcr.io/alun-ai/mcp-alunai-memory:latest
 ```
 
 ### Issue: AutoCodeIndex not responding

@@ -33,7 +33,7 @@ class MemoryMcpServer:
         """
         self.config = config
         self.domain_manager = MemoryDomainManager(config)
-        self.app = FastMCP("mcp-persistent-memory-server")
+        self.app = FastMCP("mcp-alunai-memory-server")
         self.tool_definitions = MemoryToolDefinitions(self.domain_manager)
         
         # Initialize AutoCode extensions

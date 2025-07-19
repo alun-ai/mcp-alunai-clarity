@@ -89,7 +89,7 @@ Alternatively, you can run the Memory MCP Server as a Docker container using the
         "--rm",
         "-e",
         "MEMORY_FILE_PATH",
-        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/tmp/memory.json"
@@ -113,7 +113,7 @@ For persistent memory across Docker runs, you can mount a volume:
         "-v", "/path/to/memory/directory:/app/memory",
         "-e",
         "MEMORY_FILE_PATH=/app/memory/memory.json",
-        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/app/memory/memory.json"

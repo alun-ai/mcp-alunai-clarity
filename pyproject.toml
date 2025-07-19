@@ -3,9 +3,9 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp_persistent_memory"
+name = "mcp_alunai_memory"
 version = "0.2.0"
-description = "MCP Persistent Memory with AutoCodeIndex - Advanced MCP server with persistent memory and intelligent code project assistance"
+description = "MCP AlunAI Memory with AutoCodeIndex - Advanced MCP server with persistent memory and intelligent code project assistance"
 readme = "README.md"
 authors = [
     {name = "Phoenix", email = "example@example.com"}

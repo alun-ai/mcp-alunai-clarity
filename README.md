@@ -1,6 +1,6 @@
-# MCP Persistent Memory with AutoCodeIndex
+# MCP Alun.ai Memory with AutoCodeIndex
 
-An advanced MCP (Model Context Protocol) server implementation that provides persistent memory capabilities and intelligent code project assistance for Large Language Models, specifically designed to integrate with the Claude desktop application.
+An advanced MCP (Model Context Protocol) server implementation that provides advanced persistent memory capabilities and intelligent code project assistance for Large Language Models, specifically designed to integrate with the Claude desktop application.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
@@ -10,7 +10,7 @@ This project combines optimal memory techniques with intelligent code project an
 
 ## Features
 
-### 🧠 **Core Memory System**
+### **Core Memory System**
 - **Tiered Memory Architecture**: Short-term, long-term, and archival memory tiers
 - **Multiple Memory Types**: Support for conversations, knowledge, entities, reflections, and code patterns
 - **Semantic Search**: Retrieve memories based on semantic similarity with vector embeddings
@@ -18,7 +18,7 @@ This project combines optimal memory techniques with intelligent code project an
 - **Memory Consolidation**: Automatic consolidation of short-term memories into long-term memory
 - **Memory Management**: Importance-based memory retention and forgetting
 
-### 🚀 **AutoCodeIndex Intelligence System**
+### **AutoCodeIndex Intelligence System**
 - **Intelligent Command Suggestions**: Context-aware command recommendations with confidence scoring
 - **Project Pattern Recognition**: Automatic detection of frameworks, architectures, and coding patterns
 - **Session History & Context**: Advanced conversation analysis and intelligent session navigation
@@ -26,7 +26,7 @@ This project combines optimal memory techniques with intelligent code project an
 - **Workflow Optimization**: Historical pattern-based suggestions for improving development workflows
 - **Automatic File & Command Tracking**: Zero-friction learning from Claude's interactions
 
-### 🔧 **Advanced Capabilities**
+### **Advanced Capabilities**
 - **7 New MCP Tools**: Comprehensive toolset for intelligent code assistance
 - **4 Specialized Memory Types**: project_pattern, command_pattern, session_summary, bash_execution
 - **Automatic Hook System**: Seamless integration with Claude's normal operations
@@ -34,7 +34,7 @@ This project combines optimal memory techniques with intelligent code project an
 - **Framework Detection**: React, Vue, Angular, Django, Flask, FastAPI, and others
 - **Platform Intelligence**: macOS, Linux, and Windows-specific optimizations
 
-### 🎯 **Integration & Compatibility**
+### **Integration & Compatibility**
 - **Claude Integration**: Ready-to-use integration with Claude desktop application
 - **MCP Protocol Support**: Fully compatible with the Model Context Protocol
 - **Docker Support**: Easy deployment using Docker containers
@@ -57,10 +57,25 @@ Use the pre-built Docker image from GitHub Container Registry:
         "--rm",
         "-e",
         "MEMORY_FILE_PATH",
-        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+        "-e",
+        "AUTOCODE_ENABLED",
+        "-e",
+        "AUTOCODE_COMMAND_LEARNING_ENABLED",
+        "-e",
+        "AUTOCODE_PATTERN_DETECTION_ENABLED",
+        "-e",
+        "AUTOCODE_SESSION_ANALYSIS_ENABLED",
+        "-e",
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json"
+        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "AUTOCODE_ENABLED": "true",
+        "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
+        "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
+        "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
       }
     }
   }
@@ -71,11 +86,11 @@ Alternatively, to build locally:
 
 ```bash
 # Clone the repository
-git clone https://github.com/alun-ai/mcp-persistent-memory.git
-cd mcp-persistent-memory
+git clone https://github.com/alun-ai/mcp-alunai-memory.git
+cd mcp-alunai-memory
 
 # Build the Docker image
-docker build -t mcp-persistent-memory .
+docker build -t mcp-alunai-memory .
 ```
 
 ### Option 2: Standard Installation
@@ -87,12 +102,12 @@ docker build -t mcp-persistent-memory .
 2. **Installation**:
    ```bash
    # Clone the repository
-   git clone https://github.com/alun-ai/mcp-persistent-memory.git
-   cd mcp-persistent-memory
-   
+   git clone https://github.com/alun-ai/mcp-alunai-memory.git
+   cd mcp-alunai-memory
+
    # Install dependencies
    pip install -r requirements.txt
-   
+
    # Run setup script
    chmod +x setup.sh
    ./setup.sh
@@ -118,7 +133,7 @@ docker build -t mcp-persistent-memory .
 
 ## Using Memory with Claude
 
-MCP Persistent Memory enables Claude to remember information across conversations without requiring explicit commands, while AutoCodeIndex provides intelligent code assistance.
+MCP AlunAI Memory enables Claude to remember information across conversations without requiring explicit commands, while AutoCodeIndex provides intelligent code assistance.
 
 ### 🧠 **Automatic Memory Features**
 Claude will automatically:
@@ -131,7 +146,7 @@ Claude will automatically:
 ### 🚀 **AutoCodeIndex Intelligence**
 Claude gains powerful code intelligence capabilities:
 - **Smart Command Suggestions**: Get context-aware command recommendations
-- **Project Pattern Recognition**: Automatic detection of frameworks and architectures  
+- **Project Pattern Recognition**: Automatic detection of frameworks and architectures
 - **Session Continuity**: Resume work with relevant context from previous sessions
 - **Learning Tracking**: Monitor your progress on specific technologies and topics
 - **Workflow Optimization**: Receive suggestions based on successful past patterns
@@ -166,9 +181,9 @@ AutoCodeIndex provides 7 intelligent tools:
 For optimal functionality, add this to your Claude system prompt:
 
 ```
-This Claude instance has been enhanced with persistent memory and AutoCodeIndex 
-capabilities. Claude will automatically remember important details across 
-conversations, learn from coding patterns and command usage, and provide 
+This Claude instance has been enhanced with persistent memory and AutoCodeIndex
+capabilities. Claude will automatically remember important details across
+conversations, learn from coding patterns and command usage, and provide
 intelligent assistance based on project context and historical data.
 ```
 
@@ -191,7 +206,7 @@ AutoCodeIndex consists of 5 integrated phases:
 AutoCodeIndex introduces 4 specialized memory types:
 
 - **`project_pattern`**: Stores detected project patterns, frameworks, and architectural decisions
-- **`command_pattern`**: Tracks command usage, success rates, and optimization opportunities  
+- **`command_pattern`**: Tracks command usage, success rates, and optimization opportunities
 - **`session_summary`**: Rich analysis of conversation sessions with task tracking and insights
 - **`bash_execution`**: Command execution history with context and learning data
 
@@ -273,7 +288,7 @@ AutoCodeIndex provides extensive configuration options:
 
 ## Examples
 
-The `examples` directory contains scripts demonstrating how to interact with MCP Persistent Memory:
+The `examples` directory contains scripts demonstrating how to interact with MCP AlunAI Memory:
 
 - `store_memory_example.py`: Example of storing a memory
 - `retrieve_memory_example.py`: Example of retrieving memories

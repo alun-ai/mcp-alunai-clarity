@@ -1,6 +1,6 @@
-# User Guide: MCP Persistent Memory with AutoCodeIndex
+# User Guide: MCP AlunAI Memory with AutoCodeIndex
 
-This guide explains how to set up and use the MCP Persistent Memory server with Claude Desktop for persistent memory capabilities and intelligent code project assistance through the AutoCodeIndex system.
+This guide explains how to set up and use the MCP AlunAI Memory server with Claude Desktop for persistent memory capabilities and intelligent code project assistance through the AutoCodeIndex system.
 
 ## Table of Contents
 
@@ -63,7 +63,7 @@ Use the pre-built Docker image with AutoCodeIndex features:
         "AUTOCODE_SESSION_ANALYSIS_ENABLED",
         "-e",
         "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
-        "ghcr.io/alun-ai/mcp-persistent-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/tmp/memory.json",

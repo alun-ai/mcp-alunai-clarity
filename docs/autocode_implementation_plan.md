@@ -1,13 +1,13 @@
 # AutoCodeIndex Implementation Plan
 ## Extending MCP Persistent Memory for Code Intelligence
 
-**Project Location**: `/Users/chadupton/Documents/Github/alun-ai/mcp-persistent-memory`
+**Project Location**: `/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-memory`
 **Created**: 2025-07-19
 **Status**: Planning Phase
 
 ## Overview
 
-AutoCodeIndex extends the existing MCP Persistent Memory server to provide intelligent code project awareness, command learning, and session history tracking. This eliminates the need for Claude to repeatedly rediscover project patterns, retry failed commands, or lose context between sessions.
+AutoCodeIndex extends the existing MCP AlunAI Memory server to provide intelligent code project awareness, command learning, and session history tracking. This eliminates the need for Claude to repeatedly rediscover project patterns, retry failed commands, or lose context between sessions.
 
 ### Key Features
 - **Project Pattern Recognition** - Index architectural patterns, naming conventions, and component relationships
