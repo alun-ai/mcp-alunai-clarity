@@ -87,6 +87,45 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             "semantic_threshold": 0.75,
             "recency_weight": 0.3,
             "importance_weight": 0.7
+        },
+        "autocode": {
+            "enabled": True,
+            "auto_scan_projects": True,
+            "track_bash_commands": True,
+            "generate_session_summaries": True,
+            "command_learning": {
+                "enabled": True,
+                "min_confidence_threshold": 0.3,
+                "max_suggestions": 5,
+                "track_failures": True
+            },
+            "pattern_detection": {
+                "enabled": True,
+                "supported_languages": ["typescript", "javascript", "python", "rust", "go", "java"],
+                "max_scan_depth": 5,
+                "ignore_patterns": ["node_modules", ".git", "__pycache__", "target", "build", "dist"]
+            },
+            "session_analysis": {
+                "enabled": True,
+                "min_session_length": 3,
+                "track_architectural_decisions": True,
+                "extract_learning_patterns": True,
+                "identify_workflow_improvements": True,
+                "confidence_threshold": 0.6
+            },
+            "history_navigation": {
+                "enabled": True,
+                "similarity_threshold": 0.6,
+                "max_results": 10,
+                "context_window_days": 30,
+                "prioritize_recent": True,
+                "include_incomplete_sessions": True
+            },
+            "history_retention": {
+                "session_summaries_days": 90,
+                "command_patterns_days": 30,
+                "project_patterns_days": 365
+            }
         }
     }
     
@@ -138,6 +177,35 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             "semantic_threshold": 0.75,
             "recency_weight": 0.3,
             "importance_weight": 0.7
+        },
+        "autocode": {
+            "enabled": True,
+            "auto_scan_projects": True,
+            "track_bash_commands": True,
+            "generate_session_summaries": True,
+            "command_learning": {
+                "enabled": True,
+                "min_confidence_threshold": 0.3,
+                "max_suggestions": 5,
+                "track_failures": True
+            },
+            "pattern_detection": {
+                "enabled": True,
+                "supported_languages": ["typescript", "javascript", "python", "rust", "go", "java"],
+                "max_scan_depth": 5,
+                "ignore_patterns": ["node_modules", ".git", "__pycache__", "target", "build", "dist"]
+            },
+            "session_analysis": {
+                "enabled": True,
+                "min_conversation_length": 3,
+                "track_architectural_decisions": True,
+                "extract_next_steps": True
+            },
+            "history_retention": {
+                "session_summaries_days": 90,
+                "command_patterns_days": 30,
+                "project_patterns_days": 365
+            }
         }
     }
     

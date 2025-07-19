@@ -116,6 +116,87 @@ class CodeMemory(MemoryBase):
         return v
 
 
+class ProjectPatternMemory(MemoryBase):
+    """Model for project architectural patterns."""
+    type: str = "project_pattern"
+    content: Dict[str, Any]
+    
+    @validator("content")
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate project pattern content."""
+        required_fields = ["pattern_type", "framework", "language", "structure"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Project pattern must have '{field}' field")
+        return v
+
+
+class CommandPatternMemory(MemoryBase):
+    """Model for bash command patterns and success rates."""
+    type: str = "command_pattern"
+    content: Dict[str, Any]
+    
+    @validator("content")
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate command pattern content."""
+        required_fields = ["command", "context", "success_rate", "platform"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Command pattern must have '{field}' field")
+        
+        # Validate success_rate is between 0 and 1
+        if not 0.0 <= v["success_rate"] <= 1.0:
+            raise ValueError("Command success_rate must be between 0.0 and 1.0")
+            
+        return v
+
+
+class SessionSummaryMemory(MemoryBase):
+    """Model for session summaries and completed work."""
+    type: str = "session_summary"
+    content: Dict[str, Any]
+    
+    @validator("content")
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate session summary content."""
+        required_fields = ["session_id", "tasks_completed", "patterns_used", "files_modified"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Session summary must have '{field}' field")
+        
+        # Validate that lists are actually lists
+        list_fields = ["tasks_completed", "patterns_used", "files_modified"]
+        for field in list_fields:
+            if not isinstance(v[field], list):
+                raise ValueError(f"Session summary '{field}' must be a list")
+                
+        return v
+
+
+class BashExecutionMemory(MemoryBase):
+    """Model for individual bash command executions."""
+    type: str = "bash_execution"
+    content: Dict[str, Any]
+    
+    @validator("content")
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate bash execution content."""
+        required_fields = ["command", "exit_code", "timestamp", "context"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Bash execution must have '{field}' field")
+        
+        # Validate exit_code is an integer
+        if not isinstance(v["exit_code"], int):
+            raise ValueError("Bash execution exit_code must be an integer")
+            
+        # Validate timestamp format
+        if not validate_iso_timestamp(v["timestamp"]):
+            raise ValueError("Bash execution timestamp must be valid ISO format")
+            
+        return v
+
+
 def validate_memory(memory: Dict[str, Any]) -> Dict[str, Any]:
     """
     Validate a memory object against its schema.
@@ -141,7 +222,11 @@ def validate_memory(memory: Dict[str, Any]) -> Dict[str, Any]:
         "document": DocumentMemory,
         "entity": EntityMemory,
         "reflection": ReflectionMemory,
-        "code": CodeMemory
+        "code": CodeMemory,
+        "project_pattern": ProjectPatternMemory,
+        "command_pattern": CommandPatternMemory,
+        "session_summary": SessionSummaryMemory,
+        "bash_execution": BashExecutionMemory
     }
     
     if memory_type not in validators:

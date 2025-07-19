@@ -32,8 +32,8 @@ class MemoryToolDefinitions:
             "properties": {
                 "type": {
                     "type": "string",
-                    "description": "Type of memory to store (conversation, fact, document, entity, reflection)",
-                    "enum": ["conversation", "fact", "document", "entity", "reflection", "code"]
+                    "description": "Type of memory to store",
+                    "enum": ["conversation", "fact", "document", "entity", "reflection", "code", "project_pattern", "command_pattern", "session_summary", "bash_execution"]
                 },
                 "content": {
                     "type": "object",
@@ -193,4 +193,130 @@ class MemoryToolDefinitions:
         return {
             "type": "object",
             "properties": {}
+        }
+    
+    # AutoCode tool schemas
+    @property
+    def suggest_command_schema(self) -> Dict[str, Any]:
+        """Schema for the suggest_command tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "intent": {
+                    "type": "string",
+                    "description": "What you want to accomplish (e.g., 'delete file', 'install dependencies')"
+                },
+                "context": {
+                    "type": "object",
+                    "description": "Current context (project type, platform, etc.)",
+                    "properties": {
+                        "project_type": {"type": "string"},
+                        "project_path": {"type": "string"},
+                        "platform": {"type": "string"}
+                    }
+                }
+            },
+            "required": ["intent"]
+        }
+    
+    @property
+    def track_bash_schema(self) -> Dict[str, Any]:
+        """Schema for the track_bash tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The bash command that was executed"
+                },
+                "exit_code": {
+                    "type": "integer",
+                    "description": "Exit code from command execution"
+                },
+                "output": {
+                    "type": "string",
+                    "description": "Command output or error message"
+                },
+                "context": {
+                    "type": "object",
+                    "description": "Execution context",
+                    "properties": {
+                        "project_type": {"type": "string"},
+                        "project_path": {"type": "string"},
+                        "current_directory": {"type": "string"}
+                    }
+                }
+            },
+            "required": ["command", "exit_code"]
+        }
+    
+    @property
+    def get_session_history_schema(self) -> Dict[str, Any]:
+        """Schema for the get_session_history tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Search query for session history"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of sessions to return",
+                    "minimum": 1,
+                    "maximum": 20
+                },
+                "days_back": {
+                    "type": "integer",
+                    "description": "How many days back to search",
+                    "minimum": 1,
+                    "maximum": 90
+                }
+            },
+            "required": ["query"]
+        }
+    
+    @property
+    def get_project_patterns_schema(self) -> Dict[str, Any]:
+        """Schema for the get_project_patterns tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to the project to analyze"
+                },
+                "pattern_types": {
+                    "type": "array",
+                    "description": "Types of patterns to retrieve",
+                    "items": {
+                        "type": "string",
+                        "enum": ["architectural", "naming", "component", "testing", "build"]
+                    }
+                }
+            },
+            "required": ["project_path"]
+        }
+    
+    @property
+    def track_file_access_schema(self) -> Dict[str, Any]:
+        """Schema for the track_file_access tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file that was accessed"
+                },
+                "operation": {
+                    "type": "string",
+                    "description": "Type of operation performed",
+                    "enum": ["read", "write", "edit", "delete"]
+                },
+                "content": {
+                    "type": "string",
+                    "description": "File content (for analysis)"
+                }
+            },
+            "required": ["file_path", "operation"]
         }

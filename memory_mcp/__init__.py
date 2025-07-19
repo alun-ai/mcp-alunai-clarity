@@ -1,8 +1,9 @@
 """
-Claude Memory MCP Server
+MCP Persistent Memory with AutoCodeIndex
 
-An MCP server implementation that provides persistent memory capabilities for Large Language Models,
-specifically designed to work with the Claude desktop application.
+An advanced MCP server implementation that provides persistent memory capabilities and intelligent 
+code project assistance for Large Language Models, specifically designed to work with the Claude 
+desktop application.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

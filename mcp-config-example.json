@@ -8,10 +8,25 @@
         "--rm",
         "-e",
         "MEMORY_FILE_PATH",
+        "-e",
+        "AUTOCODE_ENABLED",
+        "-e",
+        "AUTOCODE_COMMAND_LEARNING_ENABLED",
+        "-e",
+        "AUTOCODE_PATTERN_DETECTION_ENABLED",
+        "-e",
+        "AUTOCODE_SESSION_ANALYSIS_ENABLED",
+        "-e",
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
         "ghcr.io/alun-ai/mcp-persistent-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json"
+        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "AUTOCODE_ENABLED": "true",
+        "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
+        "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
+        "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
       }
     }
   }

@@ -11,6 +11,7 @@ from memory_mcp.domains.episodic import EpisodicDomain
 from memory_mcp.domains.semantic import SemanticDomain
 from memory_mcp.domains.temporal import TemporalDomain
 from memory_mcp.domains.persistence import PersistenceDomain
+from memory_mcp.autocode.domain import AutoCodeDomain
 
 
 class MemoryDomainManager:
@@ -36,6 +37,7 @@ class MemoryDomainManager:
         self.episodic_domain = EpisodicDomain(config, self.persistence_domain)
         self.semantic_domain = SemanticDomain(config, self.persistence_domain)
         self.temporal_domain = TemporalDomain(config, self.persistence_domain)
+        self.autocode_domain = AutoCodeDomain(config, self.persistence_domain)
     
     async def initialize(self) -> None:
         """Initialize all domains."""
@@ -46,6 +48,10 @@ class MemoryDomainManager:
         await self.episodic_domain.initialize()
         await self.semantic_domain.initialize()
         await self.temporal_domain.initialize()
+        await self.autocode_domain.initialize()
+        
+        # Initialize AutoCode command learner with domain manager reference
+        self.autocode_domain.set_command_learner(self)
         
         logger.info("Memory Domain Manager initialized")
     
@@ -95,6 +101,9 @@ class MemoryDomainManager:
             # Code memories get processed by both domains
             memory = await self.episodic_domain.process_memory(memory)
             memory = await self.semantic_domain.process_memory(memory)
+        elif memory_type in ["project_pattern", "command_pattern", "session_summary", "bash_execution"]:
+            # AutoCode memories get processed by AutoCode domain
+            memory = await self.autocode_domain.process_memory(memory) if hasattr(self.autocode_domain, 'process_memory') else memory
         
         # Determine memory tier based on importance and recency
         tier = "short_term"
@@ -320,7 +329,98 @@ class MemoryDomainManager:
         stats.update({
             "episodic_domain": episodic_stats,
             "semantic_domain": semantic_stats,
-            "temporal_domain": temporal_stats
+            "temporal_domain": temporal_stats,
+            "autocode_domain": await self.autocode_domain.get_stats()
         })
         
         return stats
+    
+    # AutoCode-specific methods
+    async def store_project_pattern(
+        self,
+        pattern_type: str,
+        framework: str,
+        language: str,
+        structure: Dict[str, Any],
+        importance: float = 0.7,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Store a project pattern."""
+        return await self.store_memory(
+            memory_type="project_pattern",
+            content={
+                "pattern_type": pattern_type,
+                "framework": framework,
+                "language": language,
+                "structure": structure
+            },
+            importance=importance,
+            metadata=metadata
+        )
+    
+    async def store_command_pattern(
+        self,
+        command: str,
+        context: Dict[str, Any],
+        success_rate: float,
+        platform: str,
+        importance: float = 0.6,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Store a command pattern."""
+        return await self.store_memory(
+            memory_type="command_pattern",
+            content={
+                "command": command,
+                "context": context,
+                "success_rate": success_rate,
+                "platform": platform
+            },
+            importance=importance,
+            metadata=metadata
+        )
+    
+    async def store_session_summary(
+        self,
+        session_id: str,
+        tasks_completed: List[Dict],
+        patterns_used: List[str],
+        files_modified: List[str],
+        importance: float = 0.8,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Store a session summary."""
+        return await self.store_memory(
+            memory_type="session_summary",
+            content={
+                "session_id": session_id,
+                "tasks_completed": tasks_completed,
+                "patterns_used": patterns_used,
+                "files_modified": files_modified
+            },
+            importance=importance,
+            metadata=metadata
+        )
+    
+    async def store_bash_execution(
+        self,
+        command: str,
+        exit_code: int,
+        output: str,
+        context: Dict[str, Any],
+        importance: float = 0.4,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Store a bash execution record."""
+        return await self.store_memory(
+            memory_type="bash_execution",
+            content={
+                "command": command,
+                "exit_code": exit_code,
+                "output": output[:1000] if output else "",  # Truncate long output
+                "timestamp": context.get("timestamp", ""),
+                "context": context
+            },
+            importance=importance,
+            metadata=metadata
+        )
