@@ -44,7 +44,7 @@ class TemporalDomain:
         logger.info("Initializing Temporal Domain")
         
         # Schedule initial consolidation if needed
-        consolidation_interval = self.config["memory"].get("consolidation_interval_hours", 24)
+        consolidation_interval = self.config["alunai-memory"].get("consolidation_interval_hours", 24)
         self.consolidation_interval = timedelta(hours=consolidation_interval)
         
         # Get last consolidation time from persistence
@@ -134,8 +134,8 @@ class TemporalDomain:
             Adjusted memories
         """
         # Weight configuration
-        recency_weight = self.config["memory"].get("retrieval", {}).get("recency_weight", 0.3)
-        importance_weight = self.config["memory"].get("retrieval", {}).get("importance_weight", 0.7)
+        recency_weight = self.config["retrieval"].get("recency_weight", 0.3)
+        importance_weight = self.config["retrieval"].get("importance_weight", 0.7)
         
         now = datetime.now()
         adjusted_memories = []

@@ -197,9 +197,19 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             },
             "session_analysis": {
                 "enabled": True,
-                "min_conversation_length": 3,
+                "min_session_length": 3,
                 "track_architectural_decisions": True,
-                "extract_next_steps": True
+                "extract_learning_patterns": True,
+                "identify_workflow_improvements": True,
+                "confidence_threshold": 0.6
+            },
+            "history_navigation": {
+                "enabled": True,
+                "similarity_threshold": 0.6,
+                "max_results": 10,
+                "context_window_days": 30,
+                "prioritize_recent": True,
+                "include_incomplete_sessions": True
             },
             "history_retention": {
                 "session_summaries_days": 90,
@@ -213,10 +223,10 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     merged_config = deep_merge(default_config, config)
     
     # Convert relative paths to absolute
-    if "memory" in merged_config and "file_path" in merged_config["memory"]:
-        file_path = merged_config["memory"]["file_path"]
+    if "alunai-memory" in merged_config and "file_path" in merged_config["alunai-memory"]:
+        file_path = merged_config["alunai-memory"]["file_path"]
         if not os.path.isabs(file_path):
-            merged_config["memory"]["file_path"] = os.path.abspath(file_path)
+            merged_config["alunai-memory"]["file_path"] = os.path.abspath(file_path)
     
     return merged_config
 

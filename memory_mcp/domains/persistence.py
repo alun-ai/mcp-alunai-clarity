@@ -38,7 +38,7 @@ class PersistenceDomain:
             config: Configuration dictionary
         """
         self.config = config
-        self.memory_file_path = self.config["memory"].get("file_path", "memory.json")
+        self.memory_file_path = self.config["alunai-memory"].get("file_path", "memory.json")
         self.embedding_model_name = self.config["embedding"].get("default_model", "sentence-transformers/all-MiniLM-L6-v2")
         self.embedding_dimensions = self.config["embedding"].get("dimensions", 384)
         

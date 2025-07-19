@@ -59,11 +59,11 @@ def main() -> None:
     
     # Override memory file path if specified
     if args.memory_file:
-        config["memory"]["file_path"] = args.memory_file
+        config["alunai-memory"]["file_path"] = args.memory_file
     elif "MEMORY_FILE_PATH" in os.environ:
-        config["memory"]["file_path"] = os.environ["MEMORY_FILE_PATH"]
+        config["alunai-memory"]["file_path"] = os.environ["MEMORY_FILE_PATH"]
     
-    memory_file_path = config["memory"]["file_path"]
+    memory_file_path = config["alunai-memory"]["file_path"]
     
     # Ensure memory file path exists
     memory_file_dir = os.path.dirname(memory_file_path)

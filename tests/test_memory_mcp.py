@@ -28,7 +28,7 @@ class TestConfig(unittest.TestCase):
                 
                 # Check if config has expected sections
                 self.assertIn("server", config)
-                self.assertIn("memory", config)
+                self.assertIn("alunai-memory", config)
                 self.assertIn("embedding", config)
                 
                 # Load the created config
@@ -51,7 +51,7 @@ class TestConfig(unittest.TestCase):
         
         # Check if config has expected sections
         self.assertIn("server", config)
-        self.assertIn("memory", config)
+        self.assertIn("alunai-memory", config)
         self.assertIn("embedding", config)
         
         # Clean up

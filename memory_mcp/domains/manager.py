@@ -107,7 +107,7 @@ class MemoryDomainManager:
         
         # Determine memory tier based on importance and recency
         tier = "short_term"
-        if importance < self.config["memory"].get("short_term_threshold", 0.3):
+        if importance < self.config["alunai-memory"].get("short_term_threshold", 0.3):
             tier = "long_term"
         
         # Store the memory
@@ -277,9 +277,9 @@ class MemoryDomainManager:
         new_tier = current_tier
         
         if "importance" in updates:
-            if updates["importance"] >= self.config["memory"].get("short_term_threshold", 0.3) and current_tier != "short_term":
+            if updates["importance"] >= self.config["alunai-memory"].get("short_term_threshold", 0.3) and current_tier != "short_term":
                 new_tier = "short_term"
-            elif updates["importance"] < self.config["memory"].get("short_term_threshold", 0.3) and current_tier == "short_term":
+            elif updates["importance"] < self.config["alunai-memory"].get("short_term_threshold", 0.3) and current_tier == "short_term":
                 new_tier = "long_term"
         
         # Store the updated memory
