@@ -1,5 +1,5 @@
 """
-Tests for the Memory MCP Server.
+Tests for the Alunai Clarity MCP Server.
 """
 
 import os

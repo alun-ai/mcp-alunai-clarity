@@ -1,15 +1,17 @@
-# MCP Alun.ai Memory with AutoCodeIndex 🚀
+# Alunai Clarity 🧠
 
-An advanced MCP (Model Context Protocol) server implementation featuring **high-performance Qdrant vector database** storage, **proactive memory consultation**, and intelligent code project assistance for Large Language Models.
+**An MCP server that gives cognitive abilities to Claude and other MCP aware systems.**
+
+Featuring **high-performance Qdrant vector database** storage, **proactive memory consultation**, **real MCP server discovery**, and intelligent **AutoCodeIndex** assistance for enhanced AI capabilities.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Version](https://img.shields.io/github/v/release/alun-ai/mcp-alunai-memory?color=blue)
+![Version](https://img.shields.io/github/v/release/alun-ai/mcp-alunai-clarity?color=blue)
 ![Performance](https://img.shields.io/badge/performance-10--100x_faster-brightgreen.svg)
 ![Docker](https://img.shields.io/badge/docker-supported-blue.svg)
 
 ## Overview
 
-This project revolutionizes memory management for Claude with a **high-performance vector database backend** and **proactive memory consultation system**. The **AutoCodeIndex** provides intelligent code project assistance with **automatic memory referencing** that ensures relevant context is always available.
+Alunai Clarity transforms Claude and other MCP-aware systems by providing **cognitive abilities** through advanced memory management, **proactive intelligence**, and **real-time MCP awareness**. The system enables AI assistants to maintain context, learn from interactions, and intelligently leverage available tools.
 
 ## 🎯 Key Improvements in v0.4.0
 
@@ -92,12 +94,12 @@ This project revolutionizes memory management for Claude with a **high-performan
 ```json
 {
   "mcpServers": {
-    "alunai-memory": {
+    "alunai-clarity": {
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-v", "./.claude/alunai-memory:/app/data",
-        "ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0"
+        "-v", "./.claude/alunai-clarity:/app/data",
+        "ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0"
       ],
       "type": "stdio"
     }
@@ -145,14 +147,14 @@ Use the pre-built Docker image from GitHub Container Registry:
 ```json
 {
   "mcpServers": {
-    "alunai-memory": {
+    "alunai-clarity": {
       "command": "docker",
       "args": [
         "run",
         "-i",
         "--rm",
         "-v",
-        "./.claude/alunai-memory:/data",
+        "./.claude/alunai-clarity:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -175,7 +177,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
-        "ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0"
+        "ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/data/memory.json",
@@ -200,11 +202,11 @@ Alternatively, to build locally:
 
 ```bash
 # Clone the repository
-git clone https://github.com/alun-ai/mcp-alunai-memory.git
-cd mcp-alunai-memory
+git clone https://github.com/alun-ai/mcp-alunai-clarity.git
+cd mcp-alunai-clarity
 
 # Build the Docker image
-docker build -t mcp-alunai-memory .
+docker build -t mcp-alunai-clarity .
 ```
 
 ### Option 2: Standard Installation
@@ -216,8 +218,8 @@ docker build -t mcp-alunai-memory .
 2. **Installation**:
    ```bash
    # Clone the repository
-   git clone https://github.com/alun-ai/mcp-alunai-memory.git
-   cd mcp-alunai-memory
+   git clone https://github.com/alun-ai/mcp-alunai-clarity.git
+   cd mcp-alunai-clarity
 
    # Install dependencies
    pip install -r requirements.txt
@@ -234,9 +236,9 @@ docker build -t mcp-alunai-memory .
    ```json
    {
      "mcpServers": {
-       "alunai-memory": {
+       "alunai-clarity": {
          "command": "python",
-         "args": ["-m", "memory_mcp"],
+         "args": ["-m", "clarity"],
          "env": {
            "MEMORY_FILE_PATH": "./memory.json"
          }
@@ -521,7 +523,7 @@ If you're upgrading from a previous version with JSON storage, follow these step
 
 ```bash
 # 1. Pull latest Docker image
-docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
+docker pull ghcr.io/alun-ai/mcp-alunai-clarity:v1.0.0
 
 # 2. Find your JSON file (common locations)
 # ~/.memory_mcp/data/memory.json
@@ -531,9 +533,9 @@ docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
 # 3. Run migration using CLI in Docker container
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
-           -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0 \
-           -m memory_mcp.cli.import_json /tmp/memory.json
+           -v ./.claude/alunai-clarity:/app/data \
+           ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0 \
+           -m clarity.cli.import_json /tmp/memory.json
 ```
 
 ### **Migration Results**
