@@ -166,12 +166,13 @@ class QdrantPersistenceDomain:
         
         return payload, text_content
     
-    async def store_memory(self, memory: Dict[str, Any]) -> str:
+    async def store_memory(self, memory: Dict[str, Any], tier: str = "short_term") -> str:
         """
         Store a memory in Qdrant.
         
         Args:
             memory: Memory data to store
+            tier: Memory tier (short_term, long_term, archival) - stored in metadata
             
         Returns:
             Memory ID
@@ -180,6 +181,11 @@ class QdrantPersistenceDomain:
             # Prepare payload and extract text
             payload, text_content = self._prepare_memory_payload(memory)
             memory_id = payload["memory_id"]
+            
+            # Add tier to payload metadata
+            if "metadata" not in payload:
+                payload["metadata"] = {}
+            payload["metadata"]["tier"] = tier
             
             # Generate embedding
             embedding = self._generate_embedding(text_content)
@@ -424,6 +430,89 @@ class QdrantPersistenceDomain:
             logger.error(f"Failed to update memory {memory_id}: {e}")
             return False
     
+    async def search_memories(
+        self,
+        embedding: Optional[List[float]] = None,
+        limit: int = 10,
+        types: Optional[List[str]] = None,
+        min_similarity: float = 0.0,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search memories by embedding or with filters.
+        
+        Args:
+            embedding: Vector embedding for similarity search (optional)
+            limit: Maximum number of results
+            types: Filter by memory types
+            min_similarity: Minimum similarity threshold
+            filters: Additional filters
+            
+        Returns:
+            List of matching memories
+        """
+        try:
+            # Build filters
+            search_filters = []
+            
+            if types:
+                search_filters.append(FieldCondition(
+                    key="memory_type",
+                    match=MatchAny(any=types)
+                ))
+            
+            if filters:
+                for key, value in filters.items():
+                    if isinstance(value, list):
+                        search_filters.append(FieldCondition(
+                            key=key,
+                            match=MatchAny(any=value)
+                        ))
+                    else:
+                        search_filters.append(FieldCondition(
+                            key=key,
+                            match=MatchValue(value=value)
+                        ))
+            
+            # Combine filters
+            search_filter = None
+            if search_filters:
+                if len(search_filters) == 1:
+                    search_filter = search_filters[0]
+                else:
+                    search_filter = Filter(must=search_filters)
+            
+            # If embedding is provided, do vector search
+            if embedding:
+                points = self.client.search(
+                    collection_name=self.COLLECTION_NAME,
+                    query_vector=embedding,
+                    query_filter=search_filter,
+                    limit=limit,
+                    score_threshold=min_similarity
+                )
+            else:
+                # No embedding provided, use scroll to get filtered results
+                points, _ = self.client.scroll(
+                    collection_name=self.COLLECTION_NAME,
+                    scroll_filter=search_filter,
+                    limit=limit
+                )
+            
+            # Convert results
+            results = []
+            for point in points:
+                memory = dict(point.payload)
+                if hasattr(point, 'score'):
+                    memory["similarity_score"] = point.score
+                results.append(memory)
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching memories: {e}")
+            return []
+
     async def delete_memories(self, memory_ids: List[str]) -> List[str]:
         """
         Delete memories from Qdrant.
