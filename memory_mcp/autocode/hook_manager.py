@@ -56,6 +56,10 @@ class HookManager:
             self.register_tool_hook("suggest_command", self._on_command_suggest)
             self.register_tool_hook("get_project_patterns", self._on_pattern_request)
             
+            # Proactive memory consultation hooks
+            self.register_tool_hook("suggest_memory_queries", self._on_memory_query_suggest)
+            self.register_tool_hook("check_relevant_memories", self._on_relevant_memory_check)
+            
             # Lifecycle hooks
             self.register_lifecycle_hook("session_start", self._on_session_start)
             self.register_lifecycle_hook("session_end", self._on_session_end)
@@ -65,6 +69,10 @@ class HookManager:
             self.register_event_hook("file_read", self._on_file_access)
             self.register_event_hook("bash_execution", self._on_bash_execution)
             self.register_event_hook("project_detection", self._on_project_detection)
+            
+            # Proactive memory event hooks
+            self.register_event_hook("tool_pre_execution", self._on_tool_pre_execution)
+            self.register_event_hook("context_change", self._on_context_change)
             
             logger.info("Default AutoCode hooks registered successfully")
             
@@ -347,6 +355,10 @@ class HookManager:
             # Process file access
             if self.autocode_hooks and file_path:
                 await self.autocode_hooks.on_file_read(file_path, content, operation)
+            
+            # Proactive memory consultation for file access
+            if file_path and operation == "read":
+                await self._suggest_file_related_memories(file_path)
                 
         except Exception as e:
             logger.error(f"Error in file access hook: {e}")
@@ -400,6 +412,194 @@ class HookManager:
             "lifecycle_hooks": list(self.lifecycle_hooks.keys()),
             "event_hooks": list(self.event_hooks.keys())
         }
+    
+    # Proactive memory consultation hook implementations
+    async def _on_memory_query_suggest(self, context: Dict[str, Any]) -> None:
+        """Hook for memory query suggestion operations."""
+        try:
+            arguments = context.get("arguments", {})
+            current_context = arguments.get("current_context", {})
+            suggestions = context.get("result", {}).get("suggestions", [])
+            
+            # Log query suggestion patterns for learning
+            if current_context and suggestions:
+                logger.debug(f"AutoCode: Memory query suggestions generated: {len(suggestions)} suggestions")
+                
+        except Exception as e:
+            logger.error(f"Error in memory query suggest hook: {e}")
+    
+    async def _on_relevant_memory_check(self, context: Dict[str, Any]) -> None:
+        """Hook for relevant memory check operations."""
+        try:
+            arguments = context.get("arguments", {})
+            context_data = arguments.get("context", {})
+            memories = context.get("result", {}).get("memories", [])
+            
+            # Log relevant memory checks for pattern learning
+            if context_data and memories:
+                logger.debug(f"AutoCode: Relevant memories found: {len(memories)} memories")
+                
+        except Exception as e:
+            logger.error(f"Error in relevant memory check hook: {e}")
+    
+    async def _on_tool_pre_execution(self, context: Dict[str, Any]) -> None:
+        """Hook for pre-tool execution memory consultation."""
+        try:
+            tool_data = context.get("data", {})
+            tool_name = tool_data.get("tool_name", "")
+            arguments = tool_data.get("arguments", {})
+            
+            # Suggest relevant memories before tool execution
+            if tool_name and self._should_consult_memory_for_tool(tool_name):
+                await self._suggest_contextual_memories(tool_name, arguments)
+                
+        except Exception as e:
+            logger.error(f"Error in tool pre-execution hook: {e}")
+    
+    async def _on_context_change(self, context: Dict[str, Any]) -> None:
+        """Hook for context change events that might require memory consultation."""
+        try:
+            change_data = context.get("data", {})
+            change_type = change_data.get("type", "")
+            new_context = change_data.get("context", {})
+            
+            # Trigger memory consultation for significant context changes
+            if change_type in ["project_switch", "directory_change", "task_switch"]:
+                await self._suggest_context_memories(change_type, new_context)
+                
+        except Exception as e:
+            logger.error(f"Error in context change hook: {e}")
+    
+    # Helper methods for proactive memory consultation
+    async def _suggest_file_related_memories(self, file_path: str) -> None:
+        """Suggest memories related to the accessed file."""
+        try:
+            if not self.domain_manager:
+                return
+            
+            # Extract keywords from file path for memory search
+            keywords = self._extract_file_keywords(file_path)
+            if not keywords:
+                return
+            
+            # Search for file-related memories
+            query = f"file {file_path} {' '.join(keywords)}"
+            memories = await self.domain_manager.retrieve_memories(
+                query=query,
+                limit=3,
+                memory_types=["code", "project_pattern", "session_summary"],
+                min_similarity=0.7
+            )
+            
+            if memories:
+                logger.info(f"AutoCode: Found {len(memories)} file-related memories for {file_path}")
+                # Could trigger a proactive memory presentation here
+                
+        except Exception as e:
+            logger.error(f"Error suggesting file-related memories: {e}")
+    
+    async def _suggest_contextual_memories(self, tool_name: str, arguments: Dict[str, Any]) -> None:
+        """Suggest memories based on tool context."""
+        try:
+            if not self.domain_manager:
+                return
+            
+            # Generate context-aware query based on tool and arguments
+            query = self._generate_contextual_query(tool_name, arguments)
+            if not query:
+                return
+            
+            # Search for contextually relevant memories
+            memories = await self.domain_manager.retrieve_memories(
+                query=query,
+                limit=5,
+                min_similarity=0.6
+            )
+            
+            if memories:
+                logger.info(f"AutoCode: Found {len(memories)} contextual memories for {tool_name}")
+                
+        except Exception as e:
+            logger.error(f"Error suggesting contextual memories: {e}")
+    
+    async def _suggest_context_memories(self, change_type: str, context: Dict[str, Any]) -> None:
+        """Suggest memories for context changes."""
+        try:
+            if not self.domain_manager:
+                return
+            
+            # Generate query based on context change
+            query_parts = [change_type]
+            if "project_path" in context:
+                query_parts.append(f"project {context['project_path']}")
+            if "directory" in context:
+                query_parts.append(f"directory {context['directory']}")
+            if "task" in context:
+                query_parts.append(f"task {context['task']}")
+            
+            query = " ".join(query_parts)
+            
+            # Search for context-change memories
+            memories = await self.domain_manager.retrieve_memories(
+                query=query,
+                limit=5,
+                memory_types=["session_summary", "project_pattern", "reflection"],
+                min_similarity=0.6
+            )
+            
+            if memories:
+                logger.info(f"AutoCode: Found {len(memories)} context-change memories for {change_type}")
+                
+        except Exception as e:
+            logger.error(f"Error suggesting context memories: {e}")
+    
+    def _extract_file_keywords(self, file_path: str) -> List[str]:
+        """Extract meaningful keywords from file path."""
+        import os
+        from pathlib import Path
+        
+        path = Path(file_path)
+        keywords = []
+        
+        # Add filename without extension
+        if path.stem:
+            keywords.append(path.stem)
+        
+        # Add file extension
+        if path.suffix:
+            keywords.append(path.suffix[1:])  # Remove dot
+        
+        # Add parent directory names (last 2 levels)
+        parent_parts = path.parent.parts[-2:] if len(path.parent.parts) >= 2 else path.parent.parts
+        keywords.extend(parent_parts)
+        
+        return [k for k in keywords if k and len(k) > 1]
+    
+    def _generate_contextual_query(self, tool_name: str, arguments: Dict[str, Any]) -> str:
+        """Generate context-aware query for memory search."""
+        query_parts = [tool_name]
+        
+        # Add relevant argument values as query terms
+        for key, value in arguments.items():
+            if isinstance(value, str) and len(value) < 50:
+                # Add short string values
+                query_parts.append(value)
+            elif key in ["project_path", "file_path", "command", "intent"]:
+                # Add specific important keys
+                query_parts.append(str(value))
+        
+        return " ".join(query_parts[:5])  # Limit query length
+    
+    def _should_consult_memory_for_tool(self, tool_name: str) -> bool:
+        """Determine if memory consultation is beneficial for this tool."""
+        consultation_tools = {
+            "suggest_command",
+            "get_project_patterns", 
+            "find_similar_sessions",
+            "get_continuation_context",
+            "suggest_workflow_optimizations"
+        }
+        return tool_name in consultation_tools
 
 
 class HookRegistry:
@@ -498,4 +698,18 @@ async def trigger_project_detection_hook(project_root: str) -> None:
     """Trigger project detection hook."""
     await HookRegistry.trigger_event_hooks("project_detection", {
         "project_root": project_root
+    })
+
+async def trigger_tool_pre_execution_hook(tool_name: str, arguments: Dict[str, Any]) -> None:
+    """Trigger tool pre-execution hook for proactive memory consultation."""
+    await HookRegistry.trigger_event_hooks("tool_pre_execution", {
+        "tool_name": tool_name,
+        "arguments": arguments
+    })
+
+async def trigger_context_change_hook(change_type: str, context: Dict[str, Any]) -> None:
+    """Trigger context change hook for proactive memory consultation."""
+    await HookRegistry.trigger_event_hooks("context_change", {
+        "type": change_type,
+        "context": context
     })

@@ -320,3 +320,66 @@ class MemoryToolDefinitions:
             },
             "required": ["file_path", "operation"]
         }
+    
+    # Proactive Memory Consultation tool schemas
+    @property
+    def suggest_memory_queries_schema(self) -> Dict[str, Any]:
+        """Schema for the suggest_memory_queries tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "current_context": {
+                    "type": "object",
+                    "description": "Current context including file paths, commands, project info, etc.",
+                    "properties": {
+                        "file_path": {"type": "string"},
+                        "project_path": {"type": "string"},
+                        "command": {"type": "string"},
+                        "task": {"type": "string"},
+                        "directory": {"type": "string"}
+                    }
+                },
+                "task_description": {
+                    "type": "string",
+                    "description": "Description of the current task being performed"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of query suggestions to return (default: 3)",
+                    "minimum": 1,
+                    "maximum": 10
+                }
+            },
+            "required": ["current_context"]
+        }
+    
+    @property
+    def check_relevant_memories_schema(self) -> Dict[str, Any]:
+        """Schema for the check_relevant_memories tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "context": {
+                    "type": "object",
+                    "description": "Context to search memories against",
+                    "properties": {
+                        "file_path": {"type": "string"},
+                        "project_path": {"type": "string"},
+                        "command": {"type": "string"},
+                        "task": {"type": "string"},
+                        "directory": {"type": "string"}
+                    }
+                },
+                "auto_execute": {
+                    "type": "boolean",
+                    "description": "Whether to automatically execute memory retrieval queries (default: true)"
+                },
+                "min_similarity": {
+                    "type": "number",
+                    "description": "Minimum similarity score for memory matches (default: 0.6)",
+                    "minimum": 0.0,
+                    "maximum": 1.0
+                }
+            },
+            "required": ["context"]
+        }

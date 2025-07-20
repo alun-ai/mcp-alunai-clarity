@@ -419,6 +419,149 @@ class MemoryMcpServer:
                     "success": False,
                     "error": str(e)
                 })
+
+        # Proactive Memory Consultation Tools
+        @self.app.tool()
+        async def suggest_memory_queries(
+            current_context: Dict[str, Any],
+            task_description: Optional[str] = None,
+            limit: int = 3
+        ) -> str:
+            """Suggest memory queries that Claude should execute based on current context."""
+            try:
+                suggestions = []
+                
+                # Extract keywords from context for query suggestions
+                keywords = []
+                if task_description:
+                    keywords.extend(task_description.split()[:5])
+                
+                # Add context-based keywords
+                for key, value in current_context.items():
+                    if isinstance(value, str) and len(value) < 50:
+                        keywords.append(value)
+                    elif key in ["file_path", "project_path", "command", "intent"]:
+                        keywords.append(str(value))
+                
+                # Generate query suggestions based on context
+                if "file_path" in current_context:
+                    file_path = current_context["file_path"]
+                    suggestions.append({
+                        "query": f"file {file_path}",
+                        "reason": f"Check for previous work on {file_path}",
+                        "types": ["code", "project_pattern"]
+                    })
+                
+                if "command" in current_context:
+                    command = current_context["command"]
+                    suggestions.append({
+                        "query": f"command {command}",
+                        "reason": f"Find similar command patterns for {command}",
+                        "types": ["bash_execution", "command_pattern"]
+                    })
+                
+                if "project_path" in current_context:
+                    project_path = current_context["project_path"]
+                    suggestions.append({
+                        "query": f"project {project_path}",
+                        "reason": f"Retrieve project context for {project_path}",
+                        "types": ["project_pattern", "session_summary"]
+                    })
+                
+                if task_description:
+                    suggestions.append({
+                        "query": task_description[:100],
+                        "reason": f"Find memories related to similar tasks",
+                        "types": ["session_summary", "reflection"]
+                    })
+                
+                # Limit to requested number of suggestions
+                suggestions = suggestions[:limit]
+                
+                return json.dumps({
+                    "success": True,
+                    "current_context": current_context,
+                    "task_description": task_description,
+                    "suggestions": suggestions,
+                    "total_suggestions": len(suggestions)
+                })
+            except Exception as e:
+                logger.error(f"Error in suggest_memory_queries: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self.app.tool()
+        async def check_relevant_memories(
+            context: Dict[str, Any],
+            auto_execute: bool = True,
+            min_similarity: float = 0.6
+        ) -> str:
+            """Automatically check for and return relevant memories based on current context."""
+            try:
+                relevant_memories = []
+                
+                # Generate context-aware queries
+                queries = []
+                
+                # File-based queries
+                if "file_path" in context:
+                    file_path = context["file_path"]
+                    from pathlib import Path
+                    path = Path(file_path)
+                    queries.append(f"file {path.name} {path.suffix}")
+                
+                # Command-based queries  
+                if "command" in context:
+                    command = context["command"]
+                    queries.append(f"command {command.split()[0]}")
+                
+                # Project-based queries
+                if "project_path" in context:
+                    project_path = context["project_path"]
+                    queries.append(f"project {Path(project_path).name}")
+                
+                # Task-based queries
+                if "task" in context:
+                    task = context["task"]
+                    queries.append(task[:100])
+                
+                # Directory-based queries
+                if "directory" in context:
+                    directory = context["directory"]
+                    queries.append(f"directory {Path(directory).name}")
+                
+                # Execute memory retrieval for each query
+                if auto_execute:
+                    for query in queries:
+                        memories = await self.domain_manager.retrieve_memories(
+                            query=query,
+                            limit=3,
+                            min_similarity=min_similarity,
+                            include_metadata=True
+                        )
+                        
+                        if memories:
+                            relevant_memories.extend([{
+                                "query": query,
+                                "memories": memories
+                            }])
+                
+                return json.dumps({
+                    "success": True,
+                    "context": context,
+                    "queries_generated": queries,
+                    "relevant_memories": relevant_memories,
+                    "total_memories": sum(len(rm["memories"]) for rm in relevant_memories),
+                    "auto_executed": auto_execute
+                })
+            except Exception as e:
+                logger.error(f"Error in check_relevant_memories: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
         
         logger.info("AutoCode tools registered successfully")
     
