@@ -42,7 +42,44 @@ This project combines optimal memory techniques with intelligent code project an
 
 ## Quick Start
 
-### Option 1: Using Docker (Recommended)
+### 🚀 Automatic Memory + Proactive AutoCode (Recommended)
+
+For seamless automatic memory and intelligent proactive suggestions:
+
+1. **Add proactive Docker configuration to Claude Desktop:**
+   ```json
+   {
+     "mcpServers": {
+       "alunai-memory": {
+         "command": "docker",
+         "args": [
+           "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
+           "-e", "MEMORY_FILE_PATH=/data/memory.json",
+           "-e", "AUTOCODE_AUTO_SCAN_PROJECTS=true",
+           "-e", "AUTOCODE_MIN_CONFIDENCE_THRESHOLD=0.2",
+           "ghcr.io/alun-ai/mcp-alunai-memory:latest"
+         ]
+       }
+     }
+   }
+   ```
+
+2. **Enable automatic memory + proactive features with `CLAUDE.md`:**
+   ```markdown
+   You have persistent memory and proactive AutoCode intelligence.
+   
+   Automatically store: user preferences, project architecture, 
+   command patterns, and solutions.
+   
+   Be proactive with: command suggestions (with confidence scores),
+   pattern analysis, and workflow insights.
+   ```
+
+3. **Start using Claude** - get automatic memories + proactive suggestions!
+
+📖 **See [Quick Start Guide](docs/quick_start.md) and [Proactive AutoCode Guide](docs/proactive_autocode.md)**
+
+### Option 1: Using Docker (Full Configuration)
 
 Use the pre-built Docker image from GitHub Container Registry:
 
@@ -55,6 +92,8 @@ Use the pre-built Docker image from GitHub Container Registry:
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -67,15 +106,30 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_SESSION_ANALYSIS_ENABLED",
         "-e",
         "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
+        "-e",
+        "AUTOCODE_AUTO_SCAN_PROJECTS",
+        "-e",
+        "AUTOCODE_TRACK_BASH_COMMANDS",
+        "-e",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES",
+        "-e",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
+        "-e",
+        "AUTOCODE_SIMILARITY_THRESHOLD",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "MEMORY_FILE_PATH": "/data/memory.json",
         "AUTOCODE_ENABLED": "true",
         "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
         "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
         "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
-        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true",
+        "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+        "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
       }
     }
   }
@@ -279,6 +333,8 @@ AutoCodeIndex provides extensive configuration options:
 
 ## Documentation
 
+- [Quick Start Guide](docs/quick_start.md) - *Get automatic memory working in 5 minutes*
+- [Proactive AutoCode Guide](docs/proactive_autocode.md) - *Enable intelligent proactive suggestions*
 - [User Guide](docs/user_guide.md)
 - [AutoCodeIndex Guide](docs/autocode_guide.md) - *Comprehensive AutoCodeIndex documentation*
 - [Docker Usage Guide](docs/docker_usage.md)

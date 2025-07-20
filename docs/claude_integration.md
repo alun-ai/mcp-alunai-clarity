@@ -30,12 +30,14 @@ Edit the file to add the following MCP server configuration:
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
-        "memory-mcp"
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json"
+        "MEMORY_FILE_PATH": "/data/memory.json"
       }
     }
   }
@@ -53,7 +55,7 @@ For local Python installation:
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
-        "MEMORY_FILE_PATH": "./memory.json"
+        "MEMORY_FILE_PATH": "./.claude/alunai-memory/memory.json"
       }
     }
   }
@@ -156,7 +158,42 @@ Get statistics about the memory store.
 {}
 ```
 
-### 3. Example Usage
+### 3. Automatic Memory Configuration
+
+#### Option A: Project-Specific Setup (Recommended)
+
+Create a `CLAUDE.md` file in your project root for automatic memory:
+
+```markdown
+# Project Memory Configuration
+
+You have persistent memory capabilities via the alunai-memory MCP server.
+
+## Automatic Memory Instructions
+
+Automatically store important information about:
+- User preferences and coding patterns
+- Project architecture and decisions  
+- Successful workflows and command patterns
+- File modifications and patterns
+- Errors and their solutions
+
+Store memories without being explicitly asked when you encounter:
+- New user preferences
+- Important project details
+- Successful command patterns
+- Learning moments or insights
+```
+
+#### Option B: Claude Desktop System Prompt
+
+Add these instructions to your Claude Desktop System Prompt for automatic memory:
+
+```
+You have persistent memory capabilities via the alunai-memory MCP server. Automatically store important information about user preferences, project architecture, successful workflows, command patterns, file modifications, and error solutions. Store memories without being explicitly asked when you encounter new user preferences, important project details, successful command patterns, or learning moments.
+```
+
+### 4. Example Usage
 
 Claude can use these memory tools to store and retrieve information. Here are some example prompts:
 

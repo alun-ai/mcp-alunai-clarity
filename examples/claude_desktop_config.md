@@ -32,7 +32,7 @@ Edit your `claude_desktop_config.json` file to include the Memory MCP Server:
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
-        "MEMORY_FILE_PATH": "/path/to/your/memory.json"
+        "MEMORY_FILE_PATH": "./.claude/alunai-memory/memory.json"
       }
     }
   }
@@ -87,12 +87,29 @@ Alternatively, you can run the Memory MCP Server as a Docker container using the
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
+        "-e",
+        "AUTOCODE_AUTO_SCAN_PROJECTS",
+        "-e",
+        "AUTOCODE_TRACK_BASH_COMMANDS",
+        "-e",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES",
+        "-e",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
+        "-e",
+        "AUTOCODE_SIMILARITY_THRESHOLD",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json"
+        "MEMORY_FILE_PATH": "/data/memory.json",
+        "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+        "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
       }
     }
   }
@@ -110,20 +127,20 @@ For persistent memory across Docker runs, you can mount a volume:
         "run",
         "-i",
         "--rm",
-        "-v", "/path/to/memory/directory:/app/memory",
+        "-v", "~/.claude/global-memory:/data",
         "-e",
-        "MEMORY_FILE_PATH=/app/memory/memory.json",
+        "MEMORY_FILE_PATH=/data/memory.json",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/app/memory/memory.json"
+        "MEMORY_FILE_PATH": "/data/memory.json"
       }
     }
   }
 }
 ```
 
-Make sure to create the directory `/path/to/memory/directory` on your host system before running.
+The recommended approach uses project-local storage with proactive AutoCode features enabled for intelligent command suggestions and automatic pattern analysis.
 
 ## Using Memory Tools in Claude
 

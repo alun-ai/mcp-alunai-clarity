@@ -34,7 +34,7 @@ If you're running the server locally for development:
          "cwd": "/path/to/mcp-alunai-memory",
          "env": {
            "MCP_CONFIG_DIR": "/Users/youruser/.memory_mcp/config",
-           "MEMORY_FILE_PATH": "/Users/youruser/.memory_mcp/data/memory.json",
+           "MEMORY_FILE_PATH": "./.claude/alunai-memory/memory.json",
            "AUTOCODE_ENABLED": "true",
            "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
            "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
@@ -59,6 +59,8 @@ For production use, use the pre-built Docker image:
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -74,7 +76,7 @@ For production use, use the pre-built Docker image:
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "MEMORY_FILE_PATH": "/data/memory.json",
         "AUTOCODE_ENABLED": "true",
         "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
         "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
@@ -98,7 +100,7 @@ source venv/bin/activate
 MCP_CONFIG_DIR=~/.memory_mcp/config MEMORY_FILE_PATH=/tmp/test_memory.json python -m memory_mcp --debug
 
 # For Docker:
-docker run -i --rm -e MEMORY_FILE_PATH=/tmp/memory.json ghcr.io/alun-ai/mcp-alunai-memory:latest --debug
+docker run -i --rm -v ./.claude/alunai-memory:/data -e MEMORY_FILE_PATH=/data/memory.json -e AUTOCODE_AUTO_SCAN_PROJECTS=true -e AUTOCODE_MIN_CONFIDENCE_THRESHOLD=0.2 ghcr.io/alun-ai/mcp-alunai-memory:latest --debug
 ```
 
 **Expected output:**

@@ -22,21 +22,33 @@ This document explains how to run the Memory MCP Server using Docker with the re
            "run",
            "-i",
            "--rm",
+           "-v",
+           "./.claude/alunai-memory:/data",
            "-e", "MEMORY_FILE_PATH",
            "-e", "AUTOCODE_ENABLED",
            "-e", "AUTOCODE_COMMAND_LEARNING_ENABLED",
            "-e", "AUTOCODE_PATTERN_DETECTION_ENABLED",
            "-e", "AUTOCODE_SESSION_ANALYSIS_ENABLED",
            "-e", "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
+           "-e", "AUTOCODE_AUTO_SCAN_PROJECTS",
+           "-e", "AUTOCODE_TRACK_BASH_COMMANDS",
+           "-e", "AUTOCODE_GENERATE_SESSION_SUMMARIES",
+           "-e", "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
+           "-e", "AUTOCODE_SIMILARITY_THRESHOLD",
            "ghcr.io/alun-ai/mcp-alunai-memory:latest"
          ],
          "env": {
-           "MEMORY_FILE_PATH": "/tmp/memory.json",
+           "MEMORY_FILE_PATH": "/data/memory.json",
            "AUTOCODE_ENABLED": "true",
            "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
            "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
            "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
-           "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
+           "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true",
+           "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+           "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+           "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+           "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+           "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
          }
        }
      }
@@ -52,7 +64,7 @@ This document explains how to run the Memory MCP Server using Docker with the re
 
 3. **Test the server:**
    ```bash
-   echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}' | docker run -i --rm -e MEMORY_FILE_PATH=/tmp/memory.json ghcr.io/alun-ai/mcp-alunai-memory:latest
+   echo '{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0.0"}}}' | docker run -i --rm -v ./.claude/alunai-memory:/data -e MEMORY_FILE_PATH=/data/memory.json ghcr.io/alun-ai/mcp-alunai-memory:latest
    ```
 
 ## How It Works
@@ -61,7 +73,7 @@ The Memory MCP Server now uses a stateless container approach:
 
 - **No background containers**: Each MCP request spawns a fresh container that exits when done
 - **Environment-based configuration**: All settings passed via environment variables
-- **Ephemeral storage**: Memory stored in `/tmp/memory.json` (lives only during conversation)
+- **Project-local storage**: Memory stored in `./.claude/alunai-memory/memory.json` (persists with project)
 - **Clean isolation**: Each container starts fresh with no shared state
 
 ## Configuration Options
@@ -70,11 +82,18 @@ The Memory MCP Server now uses a stateless container approach:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MEMORY_FILE_PATH` | Path to store memory data | `/tmp/memory.json` |
+| `MEMORY_FILE_PATH` | Path to store memory data | `/data/memory.json` |
 
 ### Custom Memory Persistence
 
-For persistent memory across Docker runs, you can mount a volume:
+The recommended configuration above stores memory locally in `./.claude/alunai-memory/memory.json`, which:
+
+- **Persists across Claude sessions** within the same project
+- **Isolates memory per project** (each project gets its own memory)
+- **Travels with your project** (great for teams and version control)
+- **Easy to manage** (can gitignore `.claude/` directory)
+
+For alternative storage locations, you can modify the volume mount:
 
 ```json
 {
@@ -86,14 +105,11 @@ For persistent memory across Docker runs, you can mount a volume:
         "-i",
         "--rm",
         "-v",
-        "/path/to/persistent/memory.json:/app/memory.json",
+        "~/.claude/global-memory:/data",
         "-e",
-        "MEMORY_FILE_PATH=/app/memory.json",
+        "MEMORY_FILE_PATH=/data/memory.json",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
-      ],
-      "env": {
-        "MEMORY_FILE_PATH": "/app/memory.json"
-      }
+      ]
     }
   }
 }
@@ -118,7 +134,7 @@ To enable debug logging:
         "--debug"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json"
+        "MEMORY_FILE_PATH": "/data/memory.json"
       }
     }
   }
@@ -141,8 +157,9 @@ To enable debug logging:
 3. Test manually: `docker run -i --rm ghcr.io/alun-ai/mcp-alunai-memory:latest --debug`
 
 ### Memory not persisting
-- Default configuration uses ephemeral storage (`/tmp/memory.json`)
-- For persistence, use volume mounts as shown in configuration options
+- Ensure you have the volume mount: `-v ./.claude/alunai-memory:/data`
+- Check that the `.claude` directory is created in your project root
+- Verify `MEMORY_FILE_PATH=/data/memory.json` in your environment
 
 ### Claude can't connect
 1. Verify MCP configuration syntax in Claude Desktop

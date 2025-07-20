@@ -6,6 +6,8 @@
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -18,15 +20,30 @@
         "AUTOCODE_SESSION_ANALYSIS_ENABLED",
         "-e",
         "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
+        "-e",
+        "AUTOCODE_AUTO_SCAN_PROJECTS",
+        "-e",
+        "AUTOCODE_TRACK_BASH_COMMANDS",
+        "-e",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES",
+        "-e",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
+        "-e",
+        "AUTOCODE_SIMILARITY_THRESHOLD",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "MEMORY_FILE_PATH": "/data/memory.json",
         "AUTOCODE_ENABLED": "true",
         "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
         "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
         "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
-        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true",
+        "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+        "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
       }
     }
   }

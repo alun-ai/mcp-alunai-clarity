@@ -51,6 +51,8 @@ Use the pre-built Docker image with AutoCodeIndex features:
         "run",
         "-i",
         "--rm",
+        "-v",
+        "./.claude/alunai-memory:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -63,15 +65,30 @@ Use the pre-built Docker image with AutoCodeIndex features:
         "AUTOCODE_SESSION_ANALYSIS_ENABLED",
         "-e",
         "AUTOCODE_HISTORY_NAVIGATION_ENABLED",
+        "-e",
+        "AUTOCODE_AUTO_SCAN_PROJECTS",
+        "-e",
+        "AUTOCODE_TRACK_BASH_COMMANDS",
+        "-e",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES",
+        "-e",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
+        "-e",
+        "AUTOCODE_SIMILARITY_THRESHOLD",
         "ghcr.io/alun-ai/mcp-alunai-memory:latest"
       ],
       "env": {
-        "MEMORY_FILE_PATH": "/tmp/memory.json",
+        "MEMORY_FILE_PATH": "/data/memory.json",
         "AUTOCODE_ENABLED": "true",
         "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
         "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
         "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
-        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true",
+        "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+        "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
       }
     }
   }
@@ -99,23 +116,64 @@ To integrate with Claude Desktop, add the Memory MCP Server to your Claude confi
       "command": "python",
       "args": ["-m", "memory_mcp"],
       "env": {
-        "MEMORY_FILE_PATH": "/path/to/your/memory.json",
+        "MEMORY_FILE_PATH": "./.claude/alunai-memory/memory.json",
         "AUTOCODE_ENABLED": "true",
         "AUTOCODE_COMMAND_LEARNING_ENABLED": "true",
         "AUTOCODE_PATTERN_DETECTION_ENABLED": "true",
         "AUTOCODE_SESSION_ANALYSIS_ENABLED": "true",
-        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true"
+        "AUTOCODE_HISTORY_NAVIGATION_ENABLED": "true",
+        "AUTOCODE_AUTO_SCAN_PROJECTS": "true",
+        "AUTOCODE_TRACK_BASH_COMMANDS": "true",
+        "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
+        "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
       }
     }
   }
 }
 ```
 
-### System Prompt
+### Automatic Memory Setup
+
+#### Option A: Project-Specific Memory (Recommended)
+
+Create a `CLAUDE.md` file in your project root:
+
+```markdown
+# Project Memory Configuration
+
+You have persistent memory capabilities via the alunai-memory MCP server.
+
+## Automatic Memory Instructions
+
+Automatically store important information about:
+- User preferences and coding patterns
+- Project architecture and decisions  
+- Successful workflows and command patterns
+- File modifications and patterns
+- Errors and their solutions
+
+Store memories without being explicitly asked when you encounter:
+- New user preferences
+- Important project details
+- Successful command patterns
+- Learning moments or insights
+
+## Memory Storage Guidelines
+
+- Use descriptive memory types: `user_preference`, `project_architecture`, `command_pattern`, `error_solution`
+- Set appropriate importance levels (0.1-1.0)
+- Include relevant context and metadata
+- Prefer automatic storage over explicit "remember" requests
+```
+
+#### Option B: Global System Prompt
 
 For optimal memory and AutoCodeIndex usage, add these instructions to your Claude Desktop System Prompt:
 
 ```
+You have persistent memory capabilities via the alunai-memory MCP server. Automatically store important information about user preferences, project architecture, successful workflows, command patterns, file modifications, and error solutions. Store memories without being explicitly asked when you encounter new user preferences, important project details, successful command patterns, or learning moments.
+
 This Claude instance has been enhanced with persistent memory and AutoCodeIndex 
 capabilities. Claude will automatically:
 1. Remember important details about you across conversations
