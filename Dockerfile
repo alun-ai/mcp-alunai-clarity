@@ -17,13 +17,39 @@ COPY . .
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 
-# Default environment variables (can be overridden)
-ENV MEMORY_FILE_PATH=/tmp/memory.json
+# Qdrant data directory
+ENV QDRANT_DATA_PATH=/app/data/qdrant
+ENV MEMORY_CONFIG_PATH=/app/config/memory_config.json
 
-# Create temporary directories
-RUN mkdir -p /tmp
+# Create data directories
+RUN mkdir -p /app/data/qdrant /app/config /app/backups
+
+# Create default configuration
+RUN echo '{\
+  "qdrant": {\
+    "path": "/app/data/qdrant",\
+    "index_params": {\
+      "m": 16,\
+      "ef_construct": 200,\
+      "full_scan_threshold": 10000\
+    }\
+  },\
+  "embedding": {\
+    "default_model": "sentence-transformers/all-MiniLM-L6-v2",\
+    "dimensions": 384,\
+    "cache_dir": "/app/data/cache"\
+  },\
+  "alunai-memory": {\
+    "max_short_term_items": 1000,\
+    "max_long_term_items": 10000,\
+    "max_archival_items": 100000\
+  }\
+}' > /app/config/memory_config.json
 
 # Set permissions
-RUN chmod +x setup.sh
+RUN chmod +x setup.sh 2>/dev/null || true
+
+# Volume for persistent data
+VOLUME ["/app/data"]
 
 ENTRYPOINT ["python", "-m", "memory_mcp"]

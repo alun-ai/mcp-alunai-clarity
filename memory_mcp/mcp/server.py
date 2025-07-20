@@ -420,6 +420,98 @@ class MemoryMcpServer:
                     "error": str(e)
                 })
 
+        @self.app.tool()
+        async def qdrant_performance_stats() -> str:
+            """Get detailed Qdrant performance statistics and optimization recommendations."""
+            try:
+                # Get comprehensive memory stats from persistence domain
+                stats = await self.domain_manager.persistence_domain.get_memory_stats()
+                
+                # Calculate performance metrics
+                total_memories = stats.get("total_memories", 0)
+                indexed_memories = stats.get("indexed_memories", 0)
+                indexing_ratio = (indexed_memories / max(total_memories, 1)) * 100
+                
+                # Determine performance rating
+                performance_rating = "excellent"
+                recommendations = []
+                
+                if indexing_ratio < 95:
+                    performance_rating = "needs_optimization"
+                    recommendations.append("Run collection optimization to improve indexing ratio")
+                
+                if stats.get("disk_data_size", 0) > 1024 * 1024 * 1024:  # > 1GB
+                    recommendations.append("Consider archiving old memories to reduce disk usage")
+                
+                if total_memories > 100000:
+                    recommendations.append("Performance may benefit from collection sharding")
+                
+                # Get memory type distribution
+                memory_types = stats.get("memory_types", {})
+                most_common_type = max(memory_types.items(), key=lambda x: x[1]) if memory_types else ("none", 0)
+                
+                performance_stats = {
+                    "total_memories": total_memories,
+                    "indexed_memories": indexed_memories,
+                    "indexing_ratio_percent": round(indexing_ratio, 2),
+                    "performance_rating": performance_rating,
+                    "disk_size_mb": round(stats.get("disk_data_size", 0) / (1024 * 1024), 2),
+                    "ram_size_mb": round(stats.get("ram_data_size", 0) / (1024 * 1024), 2),
+                    "collection_status": stats.get("collection_status", "unknown"),
+                    "most_common_memory_type": most_common_type[0],
+                    "memory_type_distribution": memory_types,
+                    "memory_tiers": stats.get("memory_tiers", {}),
+                    "recommendations": recommendations,
+                    "estimated_search_time_ms": self._estimate_search_time(total_memories),
+                }
+                
+                return json.dumps({
+                    "success": True,
+                    "performance_stats": performance_stats,
+                    "raw_qdrant_stats": stats
+                })
+                
+            except Exception as e:
+                logger.error(f"Error in qdrant_performance_stats: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self.app.tool()
+        async def optimize_qdrant_collection() -> str:
+            """Optimize the Qdrant collection for better performance."""
+            try:
+                # Trigger optimization
+                success = await self.domain_manager.persistence_domain.optimize_collection()
+                
+                if success:
+                    # Get updated stats after optimization
+                    stats = await self.domain_manager.persistence_domain.get_memory_stats()
+                    
+                    return json.dumps({
+                        "success": True,
+                        "message": "Collection optimization triggered successfully",
+                        "updated_stats": {
+                            "total_memories": stats.get("total_memories", 0),
+                            "indexed_memories": stats.get("indexed_memories", 0),
+                            "collection_status": stats.get("collection_status", "unknown"),
+                            "optimizer_status": stats.get("optimizer_status", "unknown"),
+                        }
+                    })
+                else:
+                    return json.dumps({
+                        "success": False,
+                        "error": "Failed to trigger collection optimization"
+                    })
+                    
+            except Exception as e:
+                logger.error(f"Error in optimize_qdrant_collection: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
         # Proactive Memory Consultation Tools
         @self.app.tool()
         async def suggest_memory_queries(
@@ -564,6 +656,17 @@ class MemoryMcpServer:
                 })
         
         logger.info("AutoCode tools registered successfully")
+    
+    def _estimate_search_time(self, total_memories: int) -> float:
+        """Estimate search time based on collection size."""
+        if total_memories < 1000:
+            return round(0.1 + (total_memories * 0.0001), 2)  # Very fast for small collections
+        elif total_memories < 10000:
+            return round(0.5 + (total_memories * 0.00005), 2)  # Sub-millisecond for medium
+        elif total_memories < 100000:
+            return round(1.0 + (total_memories * 0.00001), 2)  # ~1-2ms for large
+        else:
+            return round(2.0 + (total_memories * 0.000005), 2)  # ~2-5ms for very large
     
     async def _trigger_tool_hooks(
         self, 

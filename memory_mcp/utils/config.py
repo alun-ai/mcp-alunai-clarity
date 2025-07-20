@@ -66,19 +66,35 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             "port": 8000,
             "debug": False
         },
+        "qdrant": {
+            "path": os.path.expanduser("~/.memory_mcp/qdrant_data"),
+            "host": "localhost",
+            "port": 6333,
+            "prefer_grpc": False,
+            "index_params": {
+                "m": 16,
+                "ef_construct": 200,
+                "full_scan_threshold": 10000
+            },
+            "optimization": {
+                "deleted_threshold": 0.2,
+                "vacuum_min_vector_number": 1000,
+                "default_segment_number": 0
+            }
+        },
         "alunai-memory": {
             "max_short_term_items": 100,
             "max_long_term_items": 1000,
             "max_archival_items": 10000,
             "consolidation_interval_hours": 24,
             "short_term_threshold": 0.3,
-            "file_path": os.path.join(
+            "legacy_file_path": os.path.join(
                 os.path.expanduser("~/.memory_mcp/data"),
                 "memory.json"
             )
         },
         "embedding": {
-            "model": "sentence-transformers/all-MiniLM-L6-v2",
+            "default_model": "sentence-transformers/all-MiniLM-L6-v2",
             "dimensions": 384,
             "cache_dir": os.path.expanduser("~/.memory_mcp/cache")
         },
@@ -149,12 +165,28 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Validated configuration dictionary
     """
-    # Create default config
+    # Create default config template
     default_config = {
         "server": {
             "host": "127.0.0.1",
             "port": 8000,
             "debug": False
+        },
+        "qdrant": {
+            "path": os.path.expanduser("~/.memory_mcp/qdrant_data"),
+            "host": "localhost",
+            "port": 6333,
+            "prefer_grpc": False,
+            "index_params": {
+                "m": 16,
+                "ef_construct": 200,
+                "full_scan_threshold": 10000
+            },
+            "optimization": {
+                "deleted_threshold": 0.2,
+                "vacuum_min_vector_number": 1000,
+                "default_segment_number": 0
+            }
         },
         "alunai-memory": {
             "max_short_term_items": 100,
@@ -162,13 +194,13 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             "max_archival_items": 10000,
             "consolidation_interval_hours": 24,
             "short_term_threshold": 0.3,
-            "file_path": os.path.join(
+            "legacy_file_path": os.path.join(
                 os.path.expanduser("~/.memory_mcp/data"),
                 "memory.json"
             )
         },
         "embedding": {
-            "model": "sentence-transformers/all-MiniLM-L6-v2",
+            "default_model": "sentence-transformers/all-MiniLM-L6-v2",
             "dimensions": 384,
             "cache_dir": os.path.expanduser("~/.memory_mcp/cache")
         },

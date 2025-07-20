@@ -1,17 +1,16 @@
 """
-Persistence Domain for storage and retrieval of memories.
+Qdrant-based Persistence Domain for high-performance memory storage and retrieval.
 
 The Persistence Domain is responsible for:
-- File system operations
-- Vector embedding generation and storage
-- Index management
-- Memory file structure 
-- Backup and recovery
-- Efficient storage formats
+- Qdrant vector database operations
+- Vector embedding generation and indexing
+- High-performance similarity search
+- Memory metadata storage and filtering
+- Collection management and optimization
 """
 
 import os
-import json
+import uuid
 import time
 from datetime import datetime
 from pathlib import Path
@@ -20,597 +19,524 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 from loguru import logger
 from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
+from qdrant_client.models import (
+    CollectionInfo,
+    Distance,
+    VectorParams,
+    PointStruct,
+    Filter,
+    FieldCondition,
+    Range,
+    MatchValue,
+    SearchRequest,
+)
 
 
-class PersistenceDomain:
+class QdrantPersistenceDomain:
     """
-    Manages the storage and retrieval of memories.
+    High-performance Qdrant-based memory persistence.
     
-    This domain handles file operations, embedding generation,
-    and index management for the memory system.
+    This domain provides vector database operations with advanced
+    similarity search, filtering, and scalable memory management.
     """
+    
+    COLLECTION_NAME = "memories"
     
     def __init__(self, config: Dict[str, Any]) -> None:
         """
-        Initialize the persistence domain.
+        Initialize the Qdrant persistence domain.
         
         Args:
             config: Configuration dictionary
         """
         self.config = config
-        self.memory_file_path = self.config["alunai-memory"].get("file_path", "memory.json")
-        self.embedding_model_name = self.config["embedding"].get("default_model", "sentence-transformers/all-MiniLM-L6-v2")
+        self.qdrant_config = self.config.get("qdrant", {})
+        
+        # Qdrant configuration
+        self.qdrant_host = self.qdrant_config.get("host", "localhost")
+        self.qdrant_port = self.qdrant_config.get("port", 6333)
+        self.qdrant_path = self.qdrant_config.get("path", "./qdrant_data")
+        self.prefer_grpc = self.qdrant_config.get("prefer_grpc", False)
+        
+        # Embedding configuration
+        self.embedding_model_name = self.config["embedding"].get(
+            "default_model", "sentence-transformers/all-MiniLM-L6-v2"
+        )
         self.embedding_dimensions = self.config["embedding"].get("dimensions", 384)
         
+        # Performance settings
+        self.index_params = self.qdrant_config.get("index_params", {
+            "m": 16,
+            "ef_construct": 200,
+            "full_scan_threshold": 10000,
+        })
+        
         # Will be initialized during initialize()
+        self.client = None
         self.embedding_model = None
-        self.memory_data = None
-    
+        
     async def initialize(self) -> None:
-        """Initialize the persistence domain."""
-        logger.info("Initializing Persistence Domain")
-        logger.info(f"Using memory file: {self.memory_file_path}")
-        
-        # Create memory file directory if it doesn't exist
-        os.makedirs(os.path.dirname(self.memory_file_path), exist_ok=True)
-        
-        # Load memory file or create if it doesn't exist
-        self.memory_data = await self._load_memory_file()
-        
-        # Initialize embedding model
-        logger.info(f"Loading embedding model: {self.embedding_model_name}")
-        self.embedding_model = SentenceTransformer(self.embedding_model_name)
-        
-        logger.info("Persistence Domain initialized")
-    
-    async def generate_embedding(self, text: str) -> List[float]:
-        """
-        Generate an embedding vector for text.
-        
-        Args:
-            text: Text to embed
+        """Initialize the Qdrant persistence domain."""
+        try:
+            logger.info("Initializing Qdrant persistence domain...")
             
-        Returns:
-            Embedding vector as a list of floats
-        """
+            # Initialize Qdrant client (embedded mode)
+            self.client = QdrantClient(path=self.qdrant_path)
+            
+            # Initialize embedding model
+            logger.info(f"Loading embedding model: {self.embedding_model_name}")
+            self.embedding_model = SentenceTransformer(self.embedding_model_name)
+            
+            # Ensure collection exists
+            await self._ensure_collection()
+            
+            logger.info("Qdrant persistence domain initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Qdrant persistence domain: {e}")
+            raise
+    
+    async def _ensure_collection(self) -> None:
+        """Ensure the memories collection exists with proper configuration."""
+        try:
+            collections = self.client.get_collections()
+            collection_names = [col.name for col in collections.collections]
+            
+            if self.COLLECTION_NAME not in collection_names:
+                logger.info(f"Creating Qdrant collection: {self.COLLECTION_NAME}")
+                
+                self.client.create_collection(
+                    collection_name=self.COLLECTION_NAME,
+                    vectors_config=VectorParams(
+                        size=self.embedding_dimensions,
+                        distance=Distance.COSINE,
+                        hnsw_config={
+                            "m": self.index_params["m"],
+                            "ef_construct": self.index_params["ef_construct"],
+                            "full_scan_threshold": self.index_params["full_scan_threshold"],
+                        }
+                    ),
+                )
+                logger.info("Qdrant collection created successfully")
+            else:
+                logger.info(f"Qdrant collection '{self.COLLECTION_NAME}' already exists")
+                
+        except Exception as e:
+            logger.error(f"Failed to ensure collection: {e}")
+            raise
+    
+    def _generate_embedding(self, text: str) -> List[float]:
+        """Generate embedding for text."""
         if not self.embedding_model:
             raise RuntimeError("Embedding model not initialized")
         
-        # Generate embedding
-        embedding = self.embedding_model.encode(text)
-        
-        # Convert to list of floats for JSON serialization
+        embedding = self.embedding_model.encode(text, convert_to_numpy=True)
         return embedding.tolist()
     
-    async def store_memory(self, memory: Dict[str, Any], tier: str = "short_term") -> None:
-        """
-        Store a memory.
-        
-        Args:
-            memory: Memory to store
-            tier: Memory tier (short_term, long_term, archived)
-        """
-        # Ensure memory has all required fields
-        if "id" not in memory:
-            raise ValueError("Memory must have an ID")
-        
-        # Add to appropriate tier
-        valid_tiers = ["short_term", "long_term", "archived"]
-        if tier not in valid_tiers:
-            raise ValueError(f"Invalid tier: {tier}. Must be one of {valid_tiers}")
-        
-        tier_key = f"{tier}_memory"
-        if tier_key not in self.memory_data:
-            self.memory_data[tier_key] = []
-        
-        # Check for existing memory with same ID
-        existing_index = None
-        for i, existing_memory in enumerate(self.memory_data[tier_key]):
-            if existing_memory.get("id") == memory["id"]:
-                existing_index = i
-                break
-        
-        if existing_index is not None:
-            # Update existing memory
-            self.memory_data[tier_key][existing_index] = memory
+    def _prepare_memory_payload(self, memory: Dict[str, Any]) -> Dict[str, Any]:
+        """Prepare memory data for Qdrant storage."""
+        # Extract text content for embedding
+        content = memory.get("content", "")
+        if isinstance(content, dict):
+            # Combine all string values from content dict
+            text_parts = []
+            for value in content.values():
+                if isinstance(value, str):
+                    text_parts.append(value)
+            text_content = " ".join(text_parts)
         else:
-            # Add new memory
-            self.memory_data[tier_key].append(memory)
+            text_content = str(content)
         
-        # Update memory index if embedding exists
-        if "embedding" in memory:
-            await self._update_memory_index(memory, tier)
+        # Prepare payload (metadata)
+        payload = {
+            "memory_id": memory.get("id", str(uuid.uuid4())),
+            "memory_type": memory.get("type", "unknown"),
+            "content": memory.get("content", {}),
+            "importance": memory.get("importance", 0.5),
+            "tier": memory.get("tier", "short_term"),
+            "created_at": memory.get("created_at", datetime.utcnow().isoformat()),
+            "updated_at": memory.get("updated_at", datetime.utcnow().isoformat()),
+            "metadata": memory.get("metadata", {}),
+            "context": memory.get("context", {}),
+            "access_count": memory.get("access_count", 0),
+            "last_accessed": memory.get("last_accessed"),
+            "text_content": text_content,  # For full-text search
+        }
         
-        # Update memory stats
-        self._update_memory_stats()
-        
-        # Save memory file
-        await self._save_memory_file()
+        return payload, text_content
     
-    async def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+    async def store_memory(self, memory: Dict[str, Any]) -> str:
         """
-        Get a memory by ID.
+        Store a memory in Qdrant.
         
         Args:
-            memory_id: Memory ID
+            memory: Memory data to store
             
         Returns:
-            Memory dict or None if not found
+            Memory ID
         """
-        # Check all tiers
-        for tier in ["short_term_memory", "long_term_memory", "archived_memory"]:
-            if tier not in self.memory_data:
-                continue
-                
-            for memory in self.memory_data[tier]:
-                if memory.get("id") == memory_id:
-                    return memory
-        
-        return None
+        try:
+            # Prepare payload and extract text
+            payload, text_content = self._prepare_memory_payload(memory)
+            memory_id = payload["memory_id"]
+            
+            # Generate embedding
+            embedding = self._generate_embedding(text_content)
+            
+            # Create point for Qdrant
+            point = PointStruct(
+                id=memory_id,
+                vector=embedding,
+                payload=payload
+            )
+            
+            # Store in Qdrant
+            self.client.upsert(
+                collection_name=self.COLLECTION_NAME,
+                points=[point]
+            )
+            
+            logger.debug(f"Stored memory in Qdrant: {memory_id}")
+            return memory_id
+            
+        except Exception as e:
+            logger.error(f"Failed to store memory: {e}")
+            raise
     
-    async def get_memory_tier(self, memory_id: str) -> Optional[str]:
+    async def retrieve_memories(
+        self,
+        query: str,
+        limit: int = 5,
+        memory_types: Optional[List[str]] = None,
+        min_similarity: float = 0.6,
+        include_metadata: bool = False,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
         """
-        Get the tier of a memory.
+        Retrieve memories using vector similarity search with optional filtering.
         
         Args:
-            memory_id: Memory ID
+            query: Search query
+            limit: Maximum number of results
+            memory_types: Filter by memory types
+            min_similarity: Minimum similarity score
+            include_metadata: Whether to include metadata
+            filters: Additional filters
             
         Returns:
-            Memory tier or None if not found
+            List of matching memories
         """
-        # Check all tiers
-        for tier_key in ["short_term_memory", "long_term_memory", "archived_memory"]:
-            if tier_key not in self.memory_data:
-                continue
+        try:
+            # Generate query embedding
+            query_embedding = self._generate_embedding(query)
+            
+            # Build filters
+            search_filter = self._build_search_filter(
+                memory_types=memory_types,
+                min_similarity=min_similarity,
+                additional_filters=filters
+            )
+            
+            # Perform vector search
+            search_results = self.client.search(
+                collection_name=self.COLLECTION_NAME,
+                query_vector=query_embedding,
+                query_filter=search_filter,
+                limit=limit,
+                score_threshold=min_similarity,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            # Process results
+            memories = []
+            for result in search_results:
+                memory_data = {
+                    "id": result.payload["memory_id"],
+                    "type": result.payload["memory_type"],
+                    "content": result.payload["content"],
+                    "importance": result.payload["importance"],
+                    "similarity_score": float(result.score),
+                    "created_at": result.payload["created_at"],
+                    "updated_at": result.payload["updated_at"],
+                }
                 
-            for memory in self.memory_data[tier_key]:
-                if memory.get("id") == memory_id:
-                    # Convert tier_key to tier name
-                    return tier_key.replace("_memory", "")
+                if include_metadata:
+                    memory_data.update({
+                        "metadata": result.payload.get("metadata", {}),
+                        "context": result.payload.get("context", {}),
+                        "tier": result.payload.get("tier", "short_term"),
+                        "access_count": result.payload.get("access_count", 0),
+                        "last_accessed": result.payload.get("last_accessed"),
+                    })
+                
+                memories.append(memory_data)
+            
+            # Update access tracking
+            if memories:
+                await self._update_access_tracking([m["id"] for m in memories])
+            
+            logger.debug(f"Retrieved {len(memories)} memories for query: {query[:50]}...")
+            return memories
+            
+        except Exception as e:
+            logger.error(f"Failed to retrieve memories: {e}")
+            raise
+    
+    def _build_search_filter(
+        self,
+        memory_types: Optional[List[str]] = None,
+        min_similarity: Optional[float] = None,
+        additional_filters: Optional[Dict[str, Any]] = None
+    ) -> Optional[Filter]:
+        """Build Qdrant search filter from parameters."""
+        conditions = []
         
+        # Memory type filter
+        if memory_types:
+            conditions.append(
+                FieldCondition(
+                    key="memory_type",
+                    match=MatchValue(value=memory_types[0]) if len(memory_types) == 1
+                    else MatchValue(any=memory_types)
+                )
+            )
+        
+        # Additional filters
+        if additional_filters:
+            for key, value in additional_filters.items():
+                if isinstance(value, (int, float)):
+                    conditions.append(
+                        FieldCondition(
+                            key=key,
+                            range=Range(gte=value)
+                        )
+                    )
+                elif isinstance(value, str):
+                    conditions.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchValue(value=value)
+                        )
+                    )
+                elif isinstance(value, list):
+                    conditions.append(
+                        FieldCondition(
+                            key=key,
+                            match=MatchValue(any=value)
+                        )
+                    )
+        
+        if conditions:
+            return Filter(must=conditions)
         return None
     
-    async def update_memory(self, memory: Dict[str, Any], tier: str) -> None:
+    async def _update_access_tracking(self, memory_ids: List[str]) -> None:
+        """Update access tracking for retrieved memories."""
+        try:
+            current_time = datetime.utcnow().isoformat()
+            
+            for memory_id in memory_ids:
+                # Get current memory
+                points = self.client.retrieve(
+                    collection_name=self.COLLECTION_NAME,
+                    ids=[memory_id],
+                    with_payload=True
+                )
+                
+                if points:
+                    payload = points[0].payload
+                    payload["access_count"] = payload.get("access_count", 0) + 1
+                    payload["last_accessed"] = current_time
+                    
+                    # Update point
+                    self.client.set_payload(
+                        collection_name=self.COLLECTION_NAME,
+                        payload=payload,
+                        points=[memory_id]
+                    )
+                    
+        except Exception as e:
+            logger.warning(f"Failed to update access tracking: {e}")
+    
+    async def update_memory(self, memory_id: str, updates: Dict[str, Any]) -> bool:
         """
         Update an existing memory.
         
         Args:
-            memory: Updated memory dict
-            tier: Memory tier
+            memory_id: ID of memory to update
+            updates: Updates to apply
+            
+        Returns:
+            Success status
         """
-        # Get current tier
-        current_tier = await self.get_memory_tier(memory["id"])
-        
-        if current_tier is None:
-            # Memory doesn't exist, store as new
-            await self.store_memory(memory, tier)
-            return
-        
-        if current_tier == tier:
-            # Same tier, just update the memory
-            tier_key = f"{tier}_memory"
-            for i, existing_memory in enumerate(self.memory_data[tier_key]):
-                if existing_memory.get("id") == memory["id"]:
-                    self.memory_data[tier_key][i] = memory
-                    break
+        try:
+            # Get current memory
+            points = self.client.retrieve(
+                collection_name=self.COLLECTION_NAME,
+                ids=[memory_id],
+                with_payload=True,
+                with_vectors=True
+            )
             
-            # Update memory index if embedding exists
-            if "embedding" in memory:
-                await self._update_memory_index(memory, tier)
+            if not points:
+                logger.warning(f"Memory not found for update: {memory_id}")
+                return False
             
-            # Save memory file
-            await self._save_memory_file()
-        else:
-            # Different tier, remove from old tier and add to new tier
-            old_tier_key = f"{current_tier}_memory"
+            current_point = points[0]
+            current_payload = current_point.payload
+            current_vector = current_point.vector
             
-            # Remove from old tier
-            self.memory_data[old_tier_key] = [
-                m for m in self.memory_data[old_tier_key]
-                if m.get("id") != memory["id"]
-            ]
+            # Apply updates
+            for key, value in updates.items():
+                if key == "content":
+                    current_payload["content"] = value
+                    # Regenerate embedding if content changed
+                    if isinstance(value, dict):
+                        text_parts = [str(v) for v in value.values() if isinstance(v, str)]
+                        text_content = " ".join(text_parts)
+                    else:
+                        text_content = str(value)
+                    current_payload["text_content"] = text_content
+                    current_vector = self._generate_embedding(text_content)
+                else:
+                    current_payload[key] = value
             
-            # Add to new tier
-            await self.store_memory(memory, tier)
+            current_payload["updated_at"] = datetime.utcnow().isoformat()
+            
+            # Update point
+            updated_point = PointStruct(
+                id=memory_id,
+                vector=current_vector,
+                payload=current_payload
+            )
+            
+            self.client.upsert(
+                collection_name=self.COLLECTION_NAME,
+                points=[updated_point]
+            )
+            
+            logger.debug(f"Updated memory: {memory_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to update memory {memory_id}: {e}")
+            return False
     
-    async def delete_memories(self, memory_ids: List[str]) -> bool:
+    async def delete_memories(self, memory_ids: List[str]) -> List[str]:
         """
-        Delete memories.
+        Delete memories from Qdrant.
         
         Args:
             memory_ids: List of memory IDs to delete
             
         Returns:
-            Success flag
+            List of successfully deleted memory IDs
         """
-        deleted_count = 0
-        
-        # Check all tiers
-        for tier_key in ["short_term_memory", "long_term_memory", "archived_memory"]:
-            if tier_key not in self.memory_data:
-                continue
+        try:
+            # Delete points
+            operation_info = self.client.delete(
+                collection_name=self.COLLECTION_NAME,
+                points_selector=memory_ids
+            )
             
-            # Filter out memories to delete
-            original_count = len(self.memory_data[tier_key])
-            self.memory_data[tier_key] = [
-                memory for memory in self.memory_data[tier_key]
-                if memory.get("id") not in memory_ids
-            ]
-            deleted_count += original_count - len(self.memory_data[tier_key])
-        
-        # Update memory index
-        for memory_id in memory_ids:
-            await self._remove_from_memory_index(memory_id)
-        
-        # Update memory stats
-        self._update_memory_stats()
-        
-        # Save memory file
-        await self._save_memory_file()
-        
-        return deleted_count > 0
-    
-    async def search_memories(
-        self,
-        embedding: List[float],
-        limit: int = 5,
-        types: Optional[List[str]] = None,
-        min_similarity: float = 0.6
-    ) -> List[Dict[str, Any]]:
-        """
-        Search for memories using vector similarity.
-        
-        Args:
-            embedding: Query embedding vector
-            limit: Maximum number of results
-            types: Memory types to include (None for all)
-            min_similarity: Minimum similarity score
+            logger.debug(f"Deleted {len(memory_ids)} memories from Qdrant")
+            return memory_ids
             
-        Returns:
-            List of matching memories with similarity scores
-        """
-        # Convert embedding to numpy array
-        query_embedding = np.array(embedding)
-        
-        # Get all memories with embeddings
-        memories_with_embeddings = []
-        
-        for tier_key in ["short_term_memory", "long_term_memory", "archived_memory"]:
-            if tier_key not in self.memory_data:
-                continue
-                
-            for memory in self.memory_data[tier_key]:
-                if "embedding" in memory:
-                    # Filter by type if specified
-                    if types and memory.get("type") not in types:
-                        continue
-                        
-                    memories_with_embeddings.append(memory)
-        
-        # Calculate similarities
-        results_with_scores = []
-        
-        for memory in memories_with_embeddings:
-            memory_embedding = np.array(memory["embedding"])
-            
-            # Calculate cosine similarity
-            similarity = self._cosine_similarity(query_embedding, memory_embedding)
-            
-            if similarity >= min_similarity:
-                # Create a copy to avoid modifying the original
-                result = memory.copy()
-                result["similarity"] = float(similarity)
-                results_with_scores.append(result)
-        
-        # Sort by similarity
-        results_with_scores.sort(key=lambda x: x["similarity"], reverse=True)
-        
-        # Limit results
-        return results_with_scores[:limit]
-    
-    async def list_memories(
-        self,
-        types: Optional[List[str]] = None,
-        limit: int = 20,
-        offset: int = 0,
-        tier: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        List memories with filtering options.
-        
-        Args:
-            types: Memory types to include (None for all)
-            limit: Maximum number of memories to return
-            offset: Offset for pagination
-            tier: Memory tier to filter by (None for all)
-            
-        Returns:
-            List of memories
-        """
-        all_memories = []
-        
-        # Determine which tiers to include
-        tiers_to_include = []
-        if tier:
-            tiers_to_include = [f"{tier}_memory"]
-        else:
-            tiers_to_include = ["short_term_memory", "long_term_memory", "archived_memory"]
-        
-        # Collect memories from selected tiers
-        for tier_key in tiers_to_include:
-            if tier_key not in self.memory_data:
-                continue
-                
-            for memory in self.memory_data[tier_key]:
-                # Filter by type if specified
-                if types and memory.get("type") not in types:
-                    continue
-                    
-                # Add tier info
-                memory_copy = memory.copy()
-                memory_copy["tier"] = tier_key.replace("_memory", "")
-                all_memories.append(memory_copy)
-        
-        # Sort by creation time (newest first)
-        all_memories.sort(
-            key=lambda m: m.get("created_at", ""),
-            reverse=True
-        )
-        
-        # Apply pagination
-        paginated_memories = all_memories[offset:offset+limit]
-        
-        return paginated_memories
-    
-    async def get_metadata(self, key: str) -> Optional[str]:
-        """
-        Get metadata value.
-        
-        Args:
-            key: Metadata key
-            
-        Returns:
-            Metadata value or None if not found
-        """
-        metadata = self.memory_data.get("metadata", {})
-        return metadata.get(key)
-    
-    async def set_metadata(self, key: str, value: str) -> None:
-        """
-        Set metadata value.
-        
-        Args:
-            key: Metadata key
-            value: Metadata value
-        """
-        if "metadata" not in self.memory_data:
-            self.memory_data["metadata"] = {}
-            
-        self.memory_data["metadata"][key] = value
-        
-        # Save memory file
-        await self._save_memory_file()
+        except Exception as e:
+            logger.error(f"Failed to delete memories: {e}")
+            return []
     
     async def get_memory_stats(self) -> Dict[str, Any]:
-        """
-        Get memory statistics.
-        
-        Returns:
-            Memory statistics
-        """
-        return self.memory_data.get("metadata", {}).get("memory_stats", {})
-    
-    async def _load_memory_file(self) -> Dict[str, Any]:
-        """
-        Load the memory file.
-        
-        Returns:
-            Memory data
-        """
-        if not os.path.exists(self.memory_file_path):
-            logger.info(f"Memory file not found, creating new file: {self.memory_file_path}")
-            return self._create_empty_memory_file()
-        
+        """Get comprehensive memory statistics."""
         try:
-            with open(self.memory_file_path, "r") as f:
-                data = json.load(f)
-                logger.info(f"Loaded memory file with {self._count_memories(data)} memories")
-                return data
-        except json.JSONDecodeError:
-            logger.error(f"Error parsing memory file: {self.memory_file_path}")
-            logger.info("Creating new memory file")
-            return self._create_empty_memory_file()
-    
-    def _create_empty_memory_file(self) -> Dict[str, Any]:
-        """
-        Create an empty memory file structure.
-        
-        Returns:
-            Empty memory data
-        """
-        return {
-            "metadata": {
-                "version": "1.0",
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
-                "memory_stats": {
-                    "total_memories": 0,
-                    "active_memories": 0,
-                    "archived_memories": 0
-                }
-            },
-            "memory_index": {
-                "index_type": "hnsw",
-                "index_parameters": {
-                    "m": 16,
-                    "ef_construction": 200,
-                    "ef": 50
-                },
-                "entries": {}
-            },
-            "short_term_memory": [],
-            "long_term_memory": [],
-            "archived_memory": [],
-            "memory_schema": {
-                "conversation": {
-                    "required_fields": ["role", "message"],
-                    "optional_fields": ["summary", "entities", "sentiment", "intent"]
-                },
-                "fact": {
-                    "required_fields": ["fact", "confidence"],
-                    "optional_fields": ["domain", "entities", "references"]
-                },
-                "document": {
-                    "required_fields": ["title", "text"],
-                    "optional_fields": ["summary", "chunks", "metadata"]
-                },
-                "code": {
-                    "required_fields": ["language", "code"],
-                    "optional_fields": ["description", "purpose", "dependencies"]
-                }
-            },
-            "config": {
-                "memory_management": {
-                    "max_short_term_memories": 100,
-                    "max_long_term_memories": 10000,
-                    "archival_threshold_days": 30,
-                    "deletion_threshold_days": 365,
-                    "importance_decay_rate": 0.01,
-                    "minimum_importance_threshold": 0.2
-                },
-                "retrieval": {
-                    "default_top_k": 5,
-                    "semantic_threshold": 0.75,
-                    "recency_weight": 0.3,
-                    "importance_weight": 0.7
-                },
-                "embedding": {
-                    "default_model": self.embedding_model_name,
-                    "dimensions": self.embedding_dimensions,
-                    "batch_size": 8
-                }
-            }
-        }
-    
-    async def _save_memory_file(self) -> None:
-        """Save the memory file."""
-        # Update metadata
-        self.memory_data["metadata"]["updated_at"] = datetime.now().isoformat()
-        
-        # Create temp file
-        temp_file = f"{self.memory_file_path}.tmp"
-        
-        try:
-            with open(temp_file, "w") as f:
-                json.dump(self.memory_data, f, indent=2)
+            # Get collection info
+            collection_info = self.client.get_collection(self.COLLECTION_NAME)
             
-            # Rename temp file to actual file (atomic operation)
-            os.replace(temp_file, self.memory_file_path)
-            logger.debug(f"Memory file saved: {self.memory_file_path}")
+            # Count memories by type
+            type_counts = {}
+            scroll_result = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                with_payload=["memory_type"],
+                limit=10000  # Adjust based on expected memory count
+            )
+            
+            for point in scroll_result[0]:
+                memory_type = point.payload.get("memory_type", "unknown")
+                type_counts[memory_type] = type_counts.get(memory_type, 0) + 1
+            
+            # Count by tier
+            tier_counts = {}
+            scroll_result = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                with_payload=["tier"],
+                limit=10000
+            )
+            
+            for point in scroll_result[0]:
+                tier = point.payload.get("tier", "unknown")
+                tier_counts[tier] = tier_counts.get(tier, 0) + 1
+            
+            stats = {
+                "total_memories": collection_info.points_count,
+                "indexed_memories": collection_info.indexed_vectors_count,
+                "memory_types": type_counts,
+                "memory_tiers": tier_counts,
+                "collection_status": collection_info.status.value,
+                "optimizer_status": collection_info.optimizer_status,
+                "disk_data_size": getattr(collection_info, 'disk_data_size', 0),
+                "ram_data_size": getattr(collection_info, 'ram_data_size', 0),
+            }
+            
+            return stats
+            
         except Exception as e:
-            logger.error(f"Error saving memory file: {str(e)}")
-            # Clean up temp file if it exists
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
+            logger.error(f"Failed to get memory stats: {e}")
+            return {"error": str(e)}
     
-    def _count_memories(self, data: Dict[str, Any]) -> int:
-        """
-        Count the total number of memories.
-        
-        Args:
-            data: Memory data
+    async def optimize_collection(self) -> bool:
+        """Optimize the Qdrant collection for better performance."""
+        try:
+            self.client.update_collection(
+                collection_name=self.COLLECTION_NAME,
+                optimizer_config={
+                    "deleted_threshold": 0.2,
+                    "vacuum_min_vector_number": 1000,
+                    "default_segment_number": 0,
+                }
+            )
             
-        Returns:
-            Total number of memories
-        """
-        count = 0
-        for tier in ["short_term_memory", "long_term_memory", "archived_memory"]:
-            if tier in data:
-                count += len(data[tier])
-        return count
-    
-    def _update_memory_stats(self) -> None:
-        """Update memory statistics."""
-        # Initialize stats if not present
-        if "metadata" not in self.memory_data:
-            self.memory_data["metadata"] = {}
-        
-        if "memory_stats" not in self.memory_data["metadata"]:
-            self.memory_data["metadata"]["memory_stats"] = {}
-        
-        # Count memories in each tier
-        short_term_count = len(self.memory_data.get("short_term_memory", []))
-        long_term_count = len(self.memory_data.get("long_term_memory", []))
-        archived_count = len(self.memory_data.get("archived_memory", []))
-        
-        # Update stats
-        stats = self.memory_data["metadata"]["memory_stats"]
-        stats["total_memories"] = short_term_count + long_term_count + archived_count
-        stats["active_memories"] = short_term_count + long_term_count
-        stats["archived_memories"] = archived_count
-        stats["short_term_count"] = short_term_count
-        stats["long_term_count"] = long_term_count
-    
-    async def _update_memory_index(self, memory: Dict[str, Any], tier: str) -> None:
-        """
-        Update the memory index.
-        
-        Args:
-            memory: Memory to index
-            tier: Memory tier
-        """
-        if "memory_index" not in self.memory_data:
-            self.memory_data["memory_index"] = {
-                "index_type": "hnsw",
-                "index_parameters": {
-                    "m": 16,
-                    "ef_construction": 200,
-                    "ef": 50
-                },
-                "entries": {}
-            }
-        
-        if "entries" not in self.memory_data["memory_index"]:
-            self.memory_data["memory_index"]["entries"] = {}
-        
-        # Add to index
-        memory_id = memory["id"]
-        
-        self.memory_data["memory_index"]["entries"][memory_id] = {
-            "tier": tier,
-            "type": memory.get("type", "unknown"),
-            "importance": memory.get("importance", 0.5),
-            "recency": memory.get("created_at", datetime.now().isoformat())
-        }
-    
-    async def _remove_from_memory_index(self, memory_id: str) -> None:
-        """
-        Remove a memory from the index.
-        
-        Args:
-            memory_id: Memory ID
-        """
-        if "memory_index" not in self.memory_data or "entries" not in self.memory_data["memory_index"]:
-            return
-        
-        if memory_id in self.memory_data["memory_index"]["entries"]:
-            del self.memory_data["memory_index"]["entries"][memory_id]
-    
-    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
-        """
-        Calculate cosine similarity between two vectors.
-        
-        Args:
-            a: First vector
-            b: Second vector
+            logger.info("Qdrant collection optimization triggered")
+            return True
             
-        Returns:
-            Cosine similarity (0.0-1.0)
-        """
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        
-        if norm_a == 0 or norm_b == 0:
-            return 0.0
-        
-        return float(np.dot(a, b) / (norm_a * norm_b))
+        except Exception as e:
+            logger.error(f"Failed to optimize collection: {e}")
+            return False
+    
+    async def backup_memories(self, backup_path: str) -> bool:
+        """Create a backup snapshot of memories."""
+        try:
+            # Create snapshot
+            snapshot_info = self.client.create_snapshot(
+                collection_name=self.COLLECTION_NAME
+            )
+            
+            # Move snapshot to backup location
+            import shutil
+            snapshot_path = Path(self.qdrant_path) / "snapshots" / snapshot_info.name
+            backup_file = Path(backup_path) / f"memories_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.snapshot"
+            backup_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            shutil.move(str(snapshot_path), str(backup_file))
+            
+            logger.info(f"Memory backup created: {backup_file}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to create backup: {e}")
+            return False
+
+
+# Maintain compatibility with existing code
+PersistenceDomain = QdrantPersistenceDomain

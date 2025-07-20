@@ -383,3 +383,22 @@ class MemoryToolDefinitions:
             },
             "required": ["context"]
         }
+    
+    # Qdrant Performance and Optimization tool schemas
+    @property
+    def qdrant_performance_stats_schema(self) -> Dict[str, Any]:
+        """Schema for the qdrant_performance_stats tool."""
+        return {
+            "type": "object",
+            "properties": {},
+            "description": "Get detailed Qdrant performance statistics and optimization recommendations"
+        }
+    
+    @property
+    def optimize_qdrant_collection_schema(self) -> Dict[str, Any]:
+        """Schema for the optimize_qdrant_collection tool."""
+        return {
+            "type": "object", 
+            "properties": {},
+            "description": "Optimize the Qdrant collection for better performance"
+        }
