@@ -55,8 +55,6 @@ For seamless automatic memory and intelligent proactive suggestions:
          "args": [
            "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
            "-e", "MEMORY_FILE_PATH=/data/memory.json",
-           "-e", "AUTOCODE_AUTO_SCAN_PROJECTS=true",
-           "-e", "AUTOCODE_MIN_CONFIDENCE_THRESHOLD=0.2",
            "ghcr.io/alun-ai/mcp-alunai-memory:latest"
          ]
        }
@@ -67,15 +65,38 @@ For seamless automatic memory and intelligent proactive suggestions:
 2. **Enable automatic memory + proactive features with `CLAUDE.md`:**
    ```markdown
    You have persistent memory and proactive AutoCode intelligence.
-   
-   Automatically store: user preferences, project architecture, 
+
+   Automatically store: user preferences, project architecture,
    command patterns, and solutions.
-   
+
    Be proactive with: command suggestions (with confidence scores),
    pattern analysis, and workflow insights.
    ```
 
 3. **Start using Claude** - get automatic memories + proactive suggestions!
+
+### 🎯 Minimal Configuration (All Features Enabled by Default)
+
+Since all AutoCode features are enabled by default, you can use this minimal config:
+
+```json
+{
+  "mcpServers": {
+    "alunai-memory": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
+        "-e", "MEMORY_FILE_PATH=/data/memory.json",
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "/data/memory.json"
+      },
+      "type": "stdio"
+    }
+  }
+}
+```
 
 📖 **See [Quick Start Guide](docs/quick_start.md) and [Proactive AutoCode Guide](docs/proactive_autocode.md)**
 
