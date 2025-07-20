@@ -29,6 +29,7 @@ from qdrant_client.models import (
     FieldCondition,
     Range,
     MatchValue,
+    MatchAny,
     SearchRequest,
 )
 
@@ -149,8 +150,12 @@ class QdrantPersistenceDomain:
             text_content = str(content)
         
         # Prepare payload (metadata)
+        original_id = memory.get("id", str(uuid.uuid4()))
+        # Clean the ID to be a valid UUID (remove mem_ prefix if present)
+        clean_id = original_id.replace("mem_", "") if original_id and original_id.startswith("mem_") else original_id
+        
         payload = {
-            "memory_id": memory.get("id", str(uuid.uuid4())),
+            "memory_id": clean_id,
             "memory_type": memory.get("type", "unknown"),
             "content": memory.get("content", {}),
             "importance": memory.get("importance", 0.5),
