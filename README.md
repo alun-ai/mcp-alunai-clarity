@@ -81,7 +81,7 @@ This project revolutionizes memory management for Claude with a **high-performan
       "args": [
         "run", "-i", "--rm", 
         "-v", "./.claude/alunai-memory:/app/data",
-        "ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0"
+        "ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1"
       ],
       "type": "stdio"
     }
@@ -128,7 +128,7 @@ If you're upgrading from a previous version with JSON storage, follow these step
 
 ```bash
 # 1. Pull latest Docker image
-docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0
+docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
 
 # 2. Find your JSON file (common locations)
 # ~/.memory_mcp/data/memory.json
@@ -139,7 +139,7 @@ docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 ```
 

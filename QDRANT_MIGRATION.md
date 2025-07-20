@@ -21,7 +21,7 @@ This guide helps you migrate from the legacy JSON storage to the new **Qdrant ve
 #### **Option A: Docker (Recommended)**
 ```bash
 # Pull the latest Docker image with Qdrant support
-docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0
+docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
 ```
 
 #### **Option B: Python Package**
@@ -52,20 +52,20 @@ Find your existing memory file (typically at):
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 
 # Advanced migration options
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json --batch-size 500 --verbose
 
 # Dry run to check what will be imported
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json --dry-run
 ```
 
@@ -199,7 +199,7 @@ After migration, you get access to new high-performance tools:
 version: '3.8'
 services:
   alunai-memory:
-    image: ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0
+    image: ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
     volumes:
       - ./qdrant_data:/app/data/qdrant
       - ./config:/app/config
@@ -216,7 +216,7 @@ services:
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 ```
 
@@ -226,21 +226,21 @@ docker run --entrypoint="python" \
 docker run --entrypoint="python" \
            -v ~/.memory_mcp/data/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 
 # For JSON file in current directory
 docker run --entrypoint="python" \
            -v ./memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 
 # For JSON file in Claude directory
 docker run --entrypoint="python" \
            -v ./.claude/alunai-memory/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.0 \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
            -m memory_mcp.cli.import_json /tmp/memory.json
 ```
 
