@@ -1,5 +1,5 @@
 """
-Version compatibility checker for memory_mcp.
+Version compatibility checker for clarity.
 """
 
 import importlib

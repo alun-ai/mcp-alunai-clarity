@@ -1,13 +1,13 @@
 {
   "mcpServers": {
-    "alunai-memory": {
+    "alunai-clarity": {
       "command": "docker",
       "args": [
         "run",
         "-i",
         "--rm",
         "-v",
-        "./.claude/alunai-memory:/data",
+        "./.claude/alunai-clarity:/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
@@ -30,7 +30,7 @@
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
-        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/data/memory.json",

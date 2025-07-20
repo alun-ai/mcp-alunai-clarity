@@ -44,7 +44,7 @@ async def store_memory_example(memory_type: str, content: Dict[str, Any], import
     
     # Execute MCP server process
     process = subprocess.Popen(
-        ["python", "-m", "memory_mcp"],
+        ["python", "-m", "clarity"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

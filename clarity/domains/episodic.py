@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from memory_mcp.domains.persistence import PersistenceDomain
+from clarity.domains.persistence import PersistenceDomain
 
 
 class EpisodicDomain:

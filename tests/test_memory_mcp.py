@@ -8,9 +8,9 @@ import tempfile
 import unittest
 from typing import Dict, Any
 
-from memory_mcp.utils.config import load_config, create_default_config
-from memory_mcp.utils.schema import validate_memory
-from memory_mcp.utils.embeddings import EmbeddingManager
+from clarity.utils.config import load_config, create_default_config
+from clarity.utils.schema import validate_memory
+from clarity.utils.embeddings import EmbeddingManager
 
 
 class TestConfig(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestConfig(unittest.TestCase):
                 
                 # Check if config has expected sections
                 self.assertIn("server", config)
-                self.assertIn("alunai-memory", config)
+                self.assertIn("alunai-clarity", config)
                 self.assertIn("embedding", config)
                 
                 # Load the created config
@@ -51,7 +51,7 @@ class TestConfig(unittest.TestCase):
         
         # Check if config has expected sections
         self.assertIn("server", config)
-        self.assertIn("alunai-memory", config)
+        self.assertIn("alunai-clarity", config)
         self.assertIn("embedding", config)
         
         # Clean up

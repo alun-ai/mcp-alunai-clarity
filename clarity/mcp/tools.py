@@ -4,7 +4,7 @@ MCP tool definitions for the memory system.
 
 from typing import Dict, Any
 
-from memory_mcp.domains.manager import MemoryDomainManager
+from clarity.domains.manager import MemoryDomainManager
 
 
 class MemoryToolDefinitions:

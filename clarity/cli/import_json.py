@@ -3,8 +3,8 @@
 Command-line interface for importing JSON memories to Qdrant.
 
 Usage:
-    python -m memory_mcp.cli.import_json /path/to/memory.json
-    python -m memory_mcp.cli.import_json /path/to/memory.json --config /path/to/config.json
+    python -m clarity.cli.import_json /path/to/memory.json
+    python -m clarity.cli.import_json /path/to/memory.json --config /path/to/config.json
 """
 
 import sys
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from loguru import logger
-from memory_mcp.utils.json_importer import import_json_memories
+from clarity.utils.json_importer import import_json_memories
 
 
 def setup_logging(verbose: bool = False) -> None:
@@ -72,16 +72,16 @@ async def main() -> None:
         epilog="""
 Examples:
   Import from memory.json with default settings:
-    python -m memory_mcp.cli.import_json memory.json
+    python -m clarity.cli.import_json memory.json
 
   Import with custom configuration:
-    python -m memory_mcp.cli.import_json memory.json --config config.json
+    python -m clarity.cli.import_json memory.json --config config.json
 
   Import with larger batch size and verbose logging:
-    python -m memory_mcp.cli.import_json memory.json --batch-size 500 --verbose
+    python -m clarity.cli.import_json memory.json --batch-size 500 --verbose
 
   Import without verification (faster):
-    python -m memory_mcp.cli.import_json memory.json --no-verify
+    python -m clarity.cli.import_json memory.json --no-verify
         """
     )
     

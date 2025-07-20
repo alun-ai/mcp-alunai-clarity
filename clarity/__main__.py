@@ -10,8 +10,8 @@ from pathlib import Path
 
 from loguru import logger
 
-from memory_mcp.mcp.server import MemoryMcpServer
-from memory_mcp.utils.config import load_config
+from clarity.mcp.server import MemoryMcpServer
+from clarity.utils.config import load_config
 
 
 def main() -> None:
@@ -70,24 +70,24 @@ def main() -> None:
     # Override memory file path if specified
     if args.memory_file:
         # Support both old and new config structure
-        if "file_path" in config["alunai-memory"]:
-            config["alunai-memory"]["file_path"] = args.memory_file
+        if "file_path" in config["alunai-clarity"]:
+            config["alunai-clarity"]["file_path"] = args.memory_file
         else:
-            config["alunai-memory"]["legacy_file_path"] = args.memory_file
+            config["alunai-clarity"]["legacy_file_path"] = args.memory_file
     elif "MEMORY_FILE_PATH" in os.environ:
         # Support both old and new config structure
-        if "file_path" in config["alunai-memory"]:
-            config["alunai-memory"]["file_path"] = os.environ["MEMORY_FILE_PATH"]
+        if "file_path" in config["alunai-clarity"]:
+            config["alunai-clarity"]["file_path"] = os.environ["MEMORY_FILE_PATH"]
         else:
-            config["alunai-memory"]["legacy_file_path"] = os.environ["MEMORY_FILE_PATH"]
+            config["alunai-clarity"]["legacy_file_path"] = os.environ["MEMORY_FILE_PATH"]
     
     # Get memory file path from either old or new config structure
-    memory_file_path = config["alunai-memory"].get("file_path") or config["alunai-memory"].get("legacy_file_path")
+    memory_file_path = config["alunai-clarity"].get("file_path") or config["alunai-clarity"].get("legacy_file_path")
     
     # If no memory file path is configured, use a default (for new Qdrant-only setups)
     if not memory_file_path:
         memory_file_path = "/app/data/legacy_memory.json"  # Default path for containerized deployment
-        config["alunai-memory"]["legacy_file_path"] = memory_file_path
+        config["alunai-clarity"]["legacy_file_path"] = memory_file_path
     
     # Ensure memory file path exists
     memory_file_dir = os.path.dirname(memory_file_path)

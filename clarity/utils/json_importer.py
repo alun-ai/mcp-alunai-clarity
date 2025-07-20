@@ -12,8 +12,8 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 from loguru import logger
-from memory_mcp.domains.persistence import QdrantPersistenceDomain
-from memory_mcp.utils.config import load_config
+from clarity.domains.persistence import QdrantPersistenceDomain
+from clarity.utils.config import load_config
 
 
 class JSONMemoryImporter:

@@ -67,7 +67,7 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             "debug": False
         },
         "qdrant": {
-            "path": os.path.expanduser("~/.memory_mcp/qdrant_data"),
+            "path": os.path.expanduser("~/.clarity/qdrant_data"),
             "host": "localhost",
             "port": 6333,
             "prefer_grpc": False,
@@ -82,21 +82,21 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
                 "default_segment_number": 0
             }
         },
-        "alunai-memory": {
+        "alunai-clarity": {
             "max_short_term_items": 100,
             "max_long_term_items": 1000,
             "max_archival_items": 10000,
             "consolidation_interval_hours": 24,
             "short_term_threshold": 0.3,
             "legacy_file_path": os.path.join(
-                os.path.expanduser("~/.memory_mcp/data"),
+                os.path.expanduser("~/.clarity/data"),
                 "memory.json"
             )
         },
         "embedding": {
             "default_model": "sentence-transformers/all-MiniLM-L6-v2",
             "dimensions": 384,
-            "cache_dir": os.path.expanduser("~/.memory_mcp/cache")
+            "cache_dir": os.path.expanduser("~/.clarity/cache")
         },
         "retrieval": {
             "default_top_k": 5,
@@ -182,7 +182,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             "debug": False
         },
         "qdrant": {
-            "path": os.path.expanduser("~/.memory_mcp/qdrant_data"),
+            "path": os.path.expanduser("~/.clarity/qdrant_data"),
             "host": "localhost",
             "port": 6333,
             "prefer_grpc": False,
@@ -197,21 +197,21 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 "default_segment_number": 0
             }
         },
-        "alunai-memory": {
+        "alunai-clarity": {
             "max_short_term_items": 100,
             "max_long_term_items": 1000,
             "max_archival_items": 10000,
             "consolidation_interval_hours": 24,
             "short_term_threshold": 0.3,
             "legacy_file_path": os.path.join(
-                os.path.expanduser("~/.memory_mcp/data"),
+                os.path.expanduser("~/.clarity/data"),
                 "memory.json"
             )
         },
         "embedding": {
             "default_model": "sentence-transformers/all-MiniLM-L6-v2",
             "dimensions": 384,
-            "cache_dir": os.path.expanduser("~/.memory_mcp/cache")
+            "cache_dir": os.path.expanduser("~/.clarity/cache")
         },
         "retrieval": {
             "default_top_k": 5,
@@ -273,10 +273,10 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
     merged_config = deep_merge(default_config, config)
     
     # Convert relative paths to absolute
-    if "alunai-memory" in merged_config and "file_path" in merged_config["alunai-memory"]:
-        file_path = merged_config["alunai-memory"]["file_path"]
+    if "alunai-clarity" in merged_config and "file_path" in merged_config["alunai-clarity"]:
+        file_path = merged_config["alunai-clarity"]["file_path"]
         if not os.path.isabs(file_path):
-            merged_config["alunai-memory"]["file_path"] = os.path.abspath(file_path)
+            merged_config["alunai-clarity"]["file_path"] = os.path.abspath(file_path)
     
     return merged_config
 

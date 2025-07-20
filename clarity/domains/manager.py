@@ -7,11 +7,11 @@ from typing import Any, Dict, List, Optional, Union
 
 from loguru import logger
 
-from memory_mcp.domains.episodic import EpisodicDomain
-from memory_mcp.domains.semantic import SemanticDomain
-from memory_mcp.domains.temporal import TemporalDomain
-from memory_mcp.domains.persistence import PersistenceDomain
-from memory_mcp.autocode.domain import AutoCodeDomain
+from clarity.domains.episodic import EpisodicDomain
+from clarity.domains.semantic import SemanticDomain
+from clarity.domains.temporal import TemporalDomain
+from clarity.domains.persistence import PersistenceDomain
+from clarity.autocode.domain import AutoCodeDomain
 
 
 class MemoryDomainManager:
@@ -107,7 +107,7 @@ class MemoryDomainManager:
         
         # Determine memory tier based on importance and recency
         tier = "short_term"
-        if importance < self.config["alunai-memory"].get("short_term_threshold", 0.3):
+        if importance < self.config["alunai-clarity"].get("short_term_threshold", 0.3):
             tier = "long_term"
         
         # Store the memory
@@ -277,9 +277,9 @@ class MemoryDomainManager:
         new_tier = current_tier
         
         if "importance" in updates:
-            if updates["importance"] >= self.config["alunai-memory"].get("short_term_threshold", 0.3) and current_tier != "short_term":
+            if updates["importance"] >= self.config["alunai-clarity"].get("short_term_threshold", 0.3) and current_tier != "short_term":
                 new_tier = "short_term"
-            elif updates["importance"] < self.config["alunai-memory"].get("short_term_threshold", 0.3) and current_tier == "short_term":
+            elif updates["importance"] < self.config["alunai-clarity"].get("short_term_threshold", 0.3) and current_tier == "short_term":
                 new_tier = "long_term"
         
         # Store the updated memory

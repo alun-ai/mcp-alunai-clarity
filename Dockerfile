@@ -39,7 +39,7 @@ RUN echo '{\
     "dimensions": 384,\
     "cache_dir": "/app/data/cache"\
   },\
-  "alunai-memory": {\
+  "alunai-clarity": {\
     "max_short_term_items": 1000,\
     "max_long_term_items": 10000,\
     "max_archival_items": 100000\
@@ -52,4 +52,4 @@ RUN chmod +x setup.sh 2>/dev/null || true
 # Volume for persistent data
 VOLUME ["/app/data"]
 
-ENTRYPOINT ["python", "-m", "memory_mcp"]
+ENTRYPOINT ["python", "-m", "clarity"]

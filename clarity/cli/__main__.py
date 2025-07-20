@@ -3,7 +3,7 @@
 Main entry point for CLI commands.
 
 Usage:
-    python -m memory_mcp.cli.import_json [args]
+    python -m clarity.cli.import_json [args]
 """
 
 import sys

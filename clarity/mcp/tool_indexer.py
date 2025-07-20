@@ -296,7 +296,7 @@ class MCPToolIndexer:
                     "content": {"type": "object", "description": "Memory content"},
                     "importance": {"type": "number", "description": "Importance score"}
                 },
-                server_name="alunai-memory",
+                server_name="alunai-clarity",
                 use_cases=[
                     "Remember important information across sessions",
                     "Store user preferences and settings",
@@ -317,7 +317,7 @@ class MCPToolIndexer:
                     "limit": {"type": "integer", "description": "Maximum results"},
                     "types": {"type": "array", "description": "Memory types to search"}
                 },
-                server_name="alunai-memory",
+                server_name="alunai-clarity",
                 use_cases=[
                     "Find relevant past conversations",
                     "Recall user preferences",
@@ -337,7 +337,7 @@ class MCPToolIndexer:
                     "current_context": {"type": "object", "description": "Current context"},
                     "task_description": {"type": "string", "description": "Current task"}
                 },
-                server_name="alunai-memory",
+                server_name="alunai-clarity",
                 use_cases=[
                     "Get proactive memory suggestions",
                     "Find relevant context automatically",

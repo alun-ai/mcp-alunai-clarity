@@ -21,7 +21,7 @@ if [ ! -f "$CONFIG_DIR/config.json" ]; then
     "port": 8000,
     "debug": false
   },
-  "alunai-memory": {
+  "alunai-clarity": {
     "max_short_term_items": 100,
     "max_long_term_items": 1000,
     "max_archival_items": 10000,
@@ -113,4 +113,4 @@ fi
 echo "Installing dependencies..."
 pip install -r requirements.txt
 
-echo "Setup complete! You can now start the memory MCP server with: python -m memory_mcp"
+echo "Setup complete! You can now start the Alunai Clarity MCP server with: python -m clarity"

@@ -3,9 +3,9 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mcp_alunai_memory"
+name = "mcp_alunai_clarity"
 version = "0.3.0"
-description = "MCP AlunAI Memory with AutoCodeIndex - Advanced MCP server with persistent memory and intelligent code project assistance"
+description = "Alunai Clarity - An MCP server that gives cognitive abilities to Claude and other MCP aware systems"
 readme = "README.md"
 authors = [
     {name = "Phoenix", email = "example@example.com"}
@@ -46,7 +46,7 @@ dev = [
 ]
 
 [tool.setuptools]
-packages = ["memory_mcp"]
+packages = ["clarity"]
 
 [tool.black]
 line-length = 88

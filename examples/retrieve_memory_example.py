@@ -48,7 +48,7 @@ async def retrieve_memory_example(query: str, limit: int = 5, memory_types: List
     
     # Execute MCP server process
     process = subprocess.Popen(
-        ["python", "-m", "memory_mcp"],
+        ["python", "-m", "clarity"],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

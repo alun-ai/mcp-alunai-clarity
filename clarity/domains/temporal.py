@@ -15,7 +15,7 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from memory_mcp.domains.persistence import PersistenceDomain
+from clarity.domains.persistence import PersistenceDomain
 
 
 class TemporalDomain:
@@ -44,7 +44,7 @@ class TemporalDomain:
         logger.info("Initializing Temporal Domain")
         
         # Schedule initial consolidation if needed
-        consolidation_interval = self.config["alunai-memory"].get("consolidation_interval_hours", 24)
+        consolidation_interval = self.config["alunai-clarity"].get("consolidation_interval_hours", 24)
         self.consolidation_interval = timedelta(hours=consolidation_interval)
         
         # Get last consolidation time from persistence

@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 from mcp.server.fastmcp import FastMCP
 
-from memory_mcp.mcp.tools import MemoryToolDefinitions
-from memory_mcp.domains.manager import MemoryDomainManager
-from memory_mcp.autocode.server import AutoCodeServerExtension
-from memory_mcp.autocode.hooks import AutoCodeHooks
-from memory_mcp.autocode.hook_manager import HookManager, HookRegistry
+from clarity.mcp.tools import MemoryToolDefinitions
+from clarity.domains.manager import MemoryDomainManager
+from clarity.autocode.server import AutoCodeServerExtension
+from clarity.autocode.hooks import AutoCodeHooks
+from clarity.autocode.hook_manager import HookManager, HookRegistry
 
 
 class MemoryMcpServer:
@@ -33,7 +33,7 @@ class MemoryMcpServer:
         """
         self.config = config
         self.domain_manager = MemoryDomainManager(config)
-        self.app = FastMCP("mcp-alunai-memory-server")
+        self.app = FastMCP("mcp-alunai-clarity-server")
         self.tool_definitions = MemoryToolDefinitions(self.domain_manager)
         
         # Initialize AutoCode extensions
