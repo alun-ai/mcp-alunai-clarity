@@ -10,11 +10,14 @@ The Persistence Domain is responsible for:
 """
 
 import os
+import sys
 import uuid
 import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+from contextlib import redirect_stderr
+from io import StringIO
 
 import numpy as np
 from loguru import logger
@@ -85,9 +88,10 @@ class QdrantPersistenceDomain:
             # Initialize Qdrant client (embedded mode)
             self.client = QdrantClient(path=self.qdrant_path)
             
-            # Initialize embedding model
+            # Initialize embedding model (suppress stderr from sentence-transformers)
             logger.info(f"Loading embedding model: {self.embedding_model_name}")
-            self.embedding_model = SentenceTransformer(self.embedding_model_name)
+            with redirect_stderr(StringIO()):
+                self.embedding_model = SentenceTransformer(self.embedding_model_name)
             
             # Ensure collection exists
             await self._ensure_collection()
@@ -132,7 +136,9 @@ class QdrantPersistenceDomain:
         if not self.embedding_model:
             raise RuntimeError("Embedding model not initialized")
         
-        embedding = self.embedding_model.encode(text, convert_to_numpy=True)
+        # Suppress tqdm progress bars from sentence-transformers
+        with redirect_stderr(StringIO()):
+            embedding = self.embedding_model.encode(text, convert_to_numpy=True)
         return embedding.tolist()
     
     def _prepare_memory_payload(self, memory: Dict[str, Any]) -> Dict[str, Any]:

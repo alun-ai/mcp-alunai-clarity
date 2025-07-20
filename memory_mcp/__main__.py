@@ -46,11 +46,12 @@ def main() -> None:
         filter=lambda record: record["level"].name not in ["ERROR", "CRITICAL"]
     )
     
-    # Separate handler for actual errors
+    # Separate handler for actual errors only
     logger.add(
         os.sys.stderr,
         level="ERROR",
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        filter=lambda record: record["level"].name in ["ERROR", "CRITICAL"]
     )
     
     # Load configuration
