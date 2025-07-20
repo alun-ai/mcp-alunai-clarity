@@ -716,6 +716,188 @@ class QdrantPersistenceDomain:
             logger.error(f"Failed to set metadata {key}: {e}")
             return False
 
+    async def generate_embedding(self, text: str) -> List[float]:
+        """
+        Generate embedding for text using the configured embedding model.
+        
+        Args:
+            text: Text to generate embedding for
+            
+        Returns:
+            List of floats representing the text embedding
+            
+        Raises:
+            RuntimeError: If embedding model is not initialized
+        """
+        try:
+            return self._generate_embedding(text)
+        except Exception as e:
+            logger.error(f"Failed to generate embedding for text: {e}")
+            raise
+    
+    async def list_memories(
+        self,
+        types: Optional[List[str]] = None,
+        limit: int = 20,
+        offset: int = 0,
+        tier: Optional[str] = None,
+        include_content: bool = False
+    ) -> List[Dict[str, Any]]:
+        """
+        List memories with optional filtering.
+        
+        Args:
+            types: Filter by memory types
+            limit: Maximum number of memories to return
+            offset: Number of memories to skip
+            tier: Filter by memory tier (short_term, long_term, archival)
+            include_content: Whether to include full content in results
+            
+        Returns:
+            List of memory dictionaries
+        """
+        try:
+            # Build filter conditions
+            must_conditions = []
+            
+            if types:
+                must_conditions.append(
+                    FieldCondition(key="type", match=MatchAny(any=types))
+                )
+            
+            if tier:
+                must_conditions.append(
+                    FieldCondition(key="tier", match=MatchValue(value=tier))
+                )
+            
+            # Create filter if we have conditions
+            search_filter = None
+            if must_conditions:
+                search_filter = Filter(must=must_conditions)
+            
+            # Search without vector (get all matching records)
+            results = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=search_filter,
+                limit=limit,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            memories = []
+            for point in results[0]:  # results is (points, next_page_offset)
+                payload = point.payload
+                memory = {
+                    "id": payload.get("id"),
+                    "type": payload.get("type"),
+                    "importance": payload.get("importance"),
+                    "tier": payload.get("tier"),
+                    "created_at": payload.get("created_at"),
+                    "updated_at": payload.get("updated_at"),
+                    "access_count": payload.get("access_count", 0),
+                    "last_accessed": payload.get("last_accessed"),
+                    "metadata": payload.get("metadata", {})
+                }
+                
+                if include_content:
+                    memory["content"] = payload.get("content")
+                    
+                memories.append(memory)
+            
+            logger.debug(f"Listed {len(memories)} memories with filters: types={types}, tier={tier}")
+            return memories
+            
+        except Exception as e:
+            logger.error(f"Failed to list memories: {e}")
+            return []
+    
+    async def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieve a specific memory by ID.
+        
+        Args:
+            memory_id: Unique identifier for the memory
+            
+        Returns:
+            Memory dictionary if found, None otherwise
+        """
+        try:
+            # Search for memory by ID
+            results = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(
+                    must=[FieldCondition(key="id", match=MatchValue(value=memory_id))]
+                ),
+                limit=1,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            if not results[0]:  # No memories found
+                return None
+            
+            point = results[0][0]
+            payload = point.payload
+            
+            # Update access tracking
+            await self._update_access_tracking(memory_id)
+            
+            memory = {
+                "id": payload.get("id"),
+                "type": payload.get("type"),
+                "content": payload.get("content"),
+                "importance": payload.get("importance"),
+                "tier": payload.get("tier"),
+                "created_at": payload.get("created_at"),
+                "updated_at": payload.get("updated_at"),
+                "access_count": payload.get("access_count", 0),
+                "last_accessed": payload.get("last_accessed"),
+                "metadata": payload.get("metadata", {})
+            }
+            
+            logger.debug(f"Retrieved memory: {memory_id}")
+            return memory
+            
+        except Exception as e:
+            logger.error(f"Failed to get memory {memory_id}: {e}")
+            return None
+    
+    async def get_memory_tier(self, memory_id: str) -> Optional[str]:
+        """
+        Get the tier of a specific memory.
+        
+        Args:
+            memory_id: Unique identifier for the memory
+            
+        Returns:
+            Memory tier (short_term, long_term, archival) if found, None otherwise
+        """
+        try:
+            # Search for memory by ID, only retrieve tier field
+            results = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(
+                    must=[FieldCondition(key="id", match=MatchValue(value=memory_id))]
+                ),
+                limit=1,
+                with_payload=["tier"],  # Only retrieve tier field
+                with_vectors=False
+            )
+            
+            if not results[0]:  # No memories found
+                return None
+            
+            point = results[0][0]
+            tier = point.payload.get("tier")
+            
+            logger.debug(f"Retrieved tier for memory {memory_id}: {tier}")
+            return tier
+            
+        except Exception as e:
+            logger.error(f"Failed to get memory tier for {memory_id}: {e}")
+            return None
+
 
 # Maintain compatibility with existing code
 PersistenceDomain = QdrantPersistenceDomain

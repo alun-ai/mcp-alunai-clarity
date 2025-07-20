@@ -99,7 +99,7 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
       "args": [
         "run", "-i", "--rm",
         "-v", "./.claude/alunai-clarity:/app/data",
-        "ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0"
+        "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
       "type": "stdio"
     }
@@ -177,7 +177,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
-        "ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0"
+        "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/data/memory.json",
@@ -534,7 +534,7 @@ docker pull ghcr.io/alun-ai/mcp-alunai-clarity:v1.0.0
 docker run --entrypoint="python" \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-clarity:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-clarity:v0.4.0 \
+           ghcr.io/alun-ai/mcp-alunai-clarity:latest \
            -m clarity.cli.import_json /tmp/memory.json
 ```
 

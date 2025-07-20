@@ -244,18 +244,45 @@ class AutoCodeDomain:
             Dictionary of known patterns for the project
         """
         try:
+            # Validate project path exists
+            import os
+            from pathlib import Path
+            logger.info(f"get_project_patterns called for: {project_path}")
+            logger.info(f"os.path.exists({project_path}): {os.path.exists(project_path)}")
+            logger.info(f"Path({project_path}).exists(): {Path(project_path).exists()}")
+            
+            if not os.path.exists(project_path) or not Path(project_path).exists():
+                logger.error(f"Project path does not exist: {project_path}")
+                return {}
+            
             # First try to get cached patterns
+            logger.info(f"Retrieving cached patterns for: {project_path}")
             cached_patterns = await self._retrieve_project_patterns(project_path)
+            logger.info(f"Cached patterns result: {cached_patterns}")
+            
+            # Validate cached patterns - ensure they don't contain error data
+            if cached_patterns and isinstance(cached_patterns, dict):
+                # Check if this is an error response that got cached
+                if "error" in cached_patterns:
+                    logger.warning(f"Found corrupted cached patterns for {project_path}, clearing cache")
+                    cached_patterns = {}
             
             # If pattern detector is available and we don't have recent patterns, scan the project
             if self.pattern_detector and not cached_patterns:
                 logger.info(f"Scanning project for patterns: {project_path}")
                 detected_patterns = await self.pattern_detector.scan_project(project_path)
                 
-                # Store detected patterns for future use
-                await self._store_detected_patterns(project_path, detected_patterns)
-                
-                return detected_patterns
+                # Validate detected patterns before storing
+                if detected_patterns and isinstance(detected_patterns, dict) and "error" not in detected_patterns:
+                    # Store detected patterns for future use
+                    await self._store_detected_patterns(project_path, detected_patterns)
+                    return detected_patterns
+                elif detected_patterns and "error" in detected_patterns:
+                    logger.error(f"Pattern detection failed for {project_path}: {detected_patterns.get('error')}")
+                    return {}
+                else:
+                    logger.warning(f"Pattern detection returned invalid data for {project_path}")
+                    return {}
             
             return cached_patterns
         except Exception as e:

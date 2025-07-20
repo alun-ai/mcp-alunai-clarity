@@ -7,3 +7,4 @@ __pycache__/
 *.pyd
 .DS_Store
 .claude/
+mcp-alunai-clarity.*

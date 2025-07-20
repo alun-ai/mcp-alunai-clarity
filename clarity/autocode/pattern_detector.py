@@ -401,9 +401,28 @@ class PatternDetector:
             Dictionary containing all detected patterns
         """
         try:
+            import os
             project_path = Path(project_root)
-            if not project_path.exists():
-                raise ValueError(f"Project path {project_root} does not exist")
+            logger.debug(f"Pattern detector: checking path existence for {project_root}")
+            
+            # Use multiple validation methods to ensure robust path checking
+            path_exists_pathlib = project_path.exists()
+            path_exists_os = os.path.exists(project_root)
+            path_is_dir_pathlib = project_path.is_dir()
+            path_is_dir_os = os.path.isdir(project_root)
+            
+            logger.debug(f"Pattern detector: pathlib.Path.exists(): {path_exists_pathlib}")
+            logger.debug(f"Pattern detector: os.path.exists(): {path_exists_os}")
+            logger.debug(f"Pattern detector: pathlib.Path.is_dir(): {path_is_dir_pathlib}")
+            logger.debug(f"Pattern detector: os.path.isdir(): {path_is_dir_os}")
+            
+            # Accept path if ANY of the validation methods confirm it exists and is a directory
+            path_valid = (path_exists_pathlib or path_exists_os) and (path_is_dir_pathlib or path_is_dir_os)
+            
+            if not path_valid:
+                logger.error(f"Pattern detector: Path validation failed for {project_root}")
+                logger.error(f"Pattern detector: All validation methods failed - pathlib.exists={path_exists_pathlib}, os.exists={path_exists_os}, pathlib.is_dir={path_is_dir_pathlib}, os.is_dir={path_is_dir_os}")
+                raise ValueError(f"Project path {project_root} does not exist or is not a directory")
             
             logger.info(f"Starting comprehensive project scan: {project_root}")
             
