@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp_alunai_memory"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP AlunAI Memory with AutoCodeIndex - Advanced MCP server with persistent memory and intelligent code project assistance"
 readme = "README.md"
 authors = [
