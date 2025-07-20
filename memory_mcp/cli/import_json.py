@@ -147,12 +147,19 @@ Examples:
             
             # Count memories
             memory_count = 0
+            
+            # Check for tier-based structure
             for tier in ["short_term_memory", "long_term_memory", "archived_memory"]:
                 if tier in data and isinstance(data[tier], list):
                     memory_count += len(data[tier])
             
+            # Check for flat memory list
             if "memories" in data and isinstance(data["memories"], list):
                 memory_count += len(data["memories"])
+            
+            # Check for direct array format (when JSON is just an array of memories)
+            elif isinstance(data, list):
+                memory_count = len(data)
             
             print(f"\nDRY RUN ANALYSIS:")
             print(f"  JSON file size: {json_file.stat().st_size / 1024:.1f} KB")

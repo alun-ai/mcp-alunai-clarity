@@ -131,8 +131,12 @@ class JSONMemoryImporter:
             "archived_memory": "archived"
         }
         
+        # Clean the ID to be a valid UUID (remove mem_ prefix if present)
+        original_id = memory.get("id", memory.get("memory_id"))
+        clean_id = original_id.replace("mem_", "") if original_id and original_id.startswith("mem_") else original_id
+        
         standardized = {
-            "id": memory.get("id", memory.get("memory_id")),
+            "id": clean_id,
             "type": memory.get("type", memory.get("memory_type", "unknown")),
             "content": memory.get("content", {}),
             "importance": memory.get("importance", 0.5),
