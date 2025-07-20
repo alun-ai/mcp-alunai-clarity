@@ -47,20 +47,26 @@ This project combines optimal memory techniques with intelligent code project an
 For seamless automatic memory and intelligent proactive suggestions:
 
 1. **Add proactive Docker configuration to Claude Desktop:**
-   ```json
-   {
-     "mcpServers": {
-       "alunai-memory": {
-         "command": "docker",
-         "args": [
-           "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
-           "-e", "MEMORY_FILE_PATH=/data/memory.json",
-           "ghcr.io/alun-ai/mcp-alunai-memory:latest"
-         ]
-       }
-     }
-   }
-   ```
+Since all AutoCode features are enabled by default, you can use this minimal config:
+
+```json
+{
+  "mcpServers": {
+    "alunai-memory": {
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
+        "-e", "MEMORY_FILE_PATH=${MEMORY_FILE_PATH}$",
+        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "/data/memory.json"
+      },
+      "type": "stdio"
+    }
+  }
+}
+```
 
 2. **Enable automatic memory + proactive features with `CLAUDE.md`:**
    ```markdown
@@ -74,29 +80,6 @@ For seamless automatic memory and intelligent proactive suggestions:
    ```
 
 3. **Start using Claude** - get automatic memories + proactive suggestions!
-
-### 🎯 Minimal Configuration (All Features Enabled by Default)
-
-Since all AutoCode features are enabled by default, you can use this minimal config:
-
-```json
-{
-  "mcpServers": {
-    "alunai-memory": {
-      "command": "docker",
-      "args": [
-        "run", "-i", "--rm", "-v", "./.claude/alunai-memory:/data",
-        "-e", "MEMORY_FILE_PATH=/data/memory.json",
-        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
-      ],
-      "env": {
-        "MEMORY_FILE_PATH": "/data/memory.json"
-      },
-      "type": "stdio"
-    }
-  }
-}
-```
 
 📖 **See [Quick Start Guide](docs/quick_start.md) and [Proactive AutoCode Guide](docs/proactive_autocode.md)**
 
@@ -151,7 +134,8 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
         "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
-      }
+      },
+      "type": "stdio"
     }
   }
 }
