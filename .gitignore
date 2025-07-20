@@ -1,3 +1,7 @@
 .envrc
 .mcp.json
 mcp_alunai_memory.egg-info
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
