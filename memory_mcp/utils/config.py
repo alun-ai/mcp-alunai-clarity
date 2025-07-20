@@ -141,6 +141,15 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
                 "session_summaries_days": 90,
                 "command_patterns_days": 30,
                 "project_patterns_days": 365
+            },
+            "mcp_awareness": {
+                "enabled": True,
+                "index_tools_on_startup": True,
+                "proactive_suggestions": True,
+                "suggest_alternatives": True,
+                "context_aware_suggestions": True,
+                "error_resolution_suggestions": True,
+                "max_recent_suggestions": 10
             }
         }
     }
@@ -247,6 +256,15 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
                 "session_summaries_days": 90,
                 "command_patterns_days": 30,
                 "project_patterns_days": 365
+            },
+            "mcp_awareness": {
+                "enabled": True,
+                "index_tools_on_startup": True,
+                "proactive_suggestions": True,
+                "suggest_alternatives": True,
+                "context_aware_suggestions": True,
+                "error_resolution_suggestions": True,
+                "max_recent_suggestions": 10
             }
         }
     }

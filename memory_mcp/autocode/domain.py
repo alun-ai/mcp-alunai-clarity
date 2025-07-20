@@ -12,6 +12,7 @@ from .command_learner import CommandLearner
 from .pattern_detector import PatternDetector
 from .session_analyzer import SessionAnalyzer
 from .history_navigator import HistoryNavigator
+from .hook_manager import HookManager
 
 
 class AutoCodeDomain:
@@ -51,6 +52,7 @@ class AutoCodeDomain:
         self.pattern_detector = None
         self.session_analyzer = None
         self.history_navigator = None
+        self.hook_manager = None
         
     async def initialize(self) -> None:
         """Initialize the AutoCode domain."""
@@ -74,7 +76,7 @@ class AutoCodeDomain:
         await self._load_existing_patterns()
         logger.info("AutoCode Domain initialized successfully")
     
-    def set_command_learner(self, domain_manager):
+    async def set_command_learner(self, domain_manager):
         """Set the command learner with domain manager reference."""
         try:
             self.command_learner = CommandLearner(domain_manager)
@@ -89,6 +91,12 @@ class AutoCodeDomain:
             if self.autocode_config.get("history_navigation", {}).get("enabled", True):
                 self.history_navigator = HistoryNavigator(domain_manager, self.autocode_config)
                 logger.info("AutoCode Domain: History navigator initialized")
+            
+            # Initialize hook manager with MCP awareness (needs domain manager)
+            if self.autocode_config.get("mcp_awareness", {}).get("enabled", True):
+                self.hook_manager = HookManager(domain_manager, None)  # No autocode_hooks needed for MCP awareness
+                await self.hook_manager.initialize()
+                logger.info("AutoCode Domain: Hook manager with MCP awareness initialized")
                 
         except Exception as e:
             logger.error(f"AutoCode Domain: Error initializing command learner and navigation: {e}")

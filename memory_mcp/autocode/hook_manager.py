@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional, Callable, Union
 from datetime import datetime
 from loguru import logger
 
+from .mcp_hooks import MCPAwarenessHooks
+
 
 class HookManager:
     """
@@ -31,6 +33,9 @@ class HookManager:
         self.domain_manager = domain_manager
         self.autocode_hooks = autocode_hooks
         
+        # Initialize MCP awareness hooks
+        self.mcp_awareness_hooks = MCPAwarenessHooks(domain_manager)
+        
         # Hook registries
         self.tool_hooks = {}  # Tool execution hooks
         self.lifecycle_hooks = {}  # Session lifecycle hooks
@@ -46,6 +51,23 @@ class HookManager:
         
         # Auto-register default hooks
         self._register_default_hooks()
+    
+    async def initialize(self) -> None:
+        """Initialize the hook manager and all subsystems."""
+        try:
+            # Initialize MCP awareness hooks
+            await self.mcp_awareness_hooks.initialize()
+            logger.info("Hook manager initialized successfully")
+        except Exception as e:
+            logger.error(f"Error initializing hook manager: {e}")
+    
+    async def get_enhanced_system_prompt(self) -> str:
+        """Get enhanced system prompt with MCP tool awareness."""
+        try:
+            return await self.mcp_awareness_hooks.get_enhanced_system_prompt()
+        except Exception as e:
+            logger.error(f"Error getting enhanced system prompt: {e}")
+            return ""
     
     def _register_default_hooks(self) -> None:
         """Register default AutoCode hooks automatically."""
@@ -73,6 +95,12 @@ class HookManager:
             # Proactive memory event hooks
             self.register_event_hook("tool_pre_execution", self._on_tool_pre_execution)
             self.register_event_hook("context_change", self._on_context_change)
+            
+            # MCP awareness hooks
+            self.register_event_hook("user_request", self._on_mcp_user_request)
+            self.register_event_hook("tool_about_to_execute", self._on_mcp_tool_about_to_execute)
+            self.register_event_hook("mcp_context_change", self._on_mcp_context_change)
+            self.register_event_hook("error_occurred", self._on_mcp_error_occurred)
             
             logger.info("Default AutoCode hooks registered successfully")
             
@@ -600,6 +628,67 @@ class HookManager:
             "suggest_workflow_optimizations"
         }
         return tool_name in consultation_tools
+    
+    # MCP awareness hook implementations
+    async def _on_mcp_user_request(self, context: Dict[str, Any]) -> None:
+        """Hook for MCP-aware user request processing."""
+        try:
+            request_data = context.get("data", {})
+            user_request = request_data.get("request", "")
+            request_context = request_data.get("context", {})
+            
+            if user_request and self.mcp_awareness_hooks:
+                suggestion = await self.mcp_awareness_hooks.on_user_request(user_request, request_context)
+                if suggestion:
+                    logger.info(f"MCP tool suggestion: {suggestion[:100]}...")
+                    # Could store the suggestion in memory or present it to the user
+                    
+        except Exception as e:
+            logger.error(f"Error in MCP user request hook: {e}")
+    
+    async def _on_mcp_tool_about_to_execute(self, context: Dict[str, Any]) -> None:
+        """Hook for MCP-aware tool execution interception."""
+        try:
+            tool_data = context.get("data", {})
+            tool_name = tool_data.get("tool_name", "")
+            tool_context = tool_data.get("context", {})
+            
+            if tool_name and self.mcp_awareness_hooks:
+                suggestion = await self.mcp_awareness_hooks.on_tool_about_to_execute(tool_name, tool_context)
+                if suggestion:
+                    logger.info(f"MCP alternative suggestion for {tool_name}: {suggestion[:100]}...")
+                    
+        except Exception as e:
+            logger.error(f"Error in MCP tool about to execute hook: {e}")
+    
+    async def _on_mcp_context_change(self, context: Dict[str, Any]) -> None:
+        """Hook for MCP-aware context change processing."""
+        try:
+            change_data = context.get("data", {})
+            new_context = change_data.get("context", {})
+            
+            if new_context and self.mcp_awareness_hooks:
+                suggestion = await self.mcp_awareness_hooks.on_context_change(new_context)
+                if suggestion:
+                    logger.info(f"MCP context suggestion: {suggestion[:100]}...")
+                    
+        except Exception as e:
+            logger.error(f"Error in MCP context change hook: {e}")
+    
+    async def _on_mcp_error_occurred(self, context: Dict[str, Any]) -> None:
+        """Hook for MCP-aware error resolution."""
+        try:
+            error_data = context.get("data", {})
+            error_message = error_data.get("error", "")
+            error_context = error_data.get("context", {})
+            
+            if error_message and self.mcp_awareness_hooks:
+                suggestion = await self.mcp_awareness_hooks.on_error_occurred(error_message, error_context)
+                if suggestion:
+                    logger.info(f"MCP error resolution suggestion: {suggestion[:100]}...")
+                    
+        except Exception as e:
+            logger.error(f"Error in MCP error occurred hook: {e}")
 
 
 class HookRegistry:
@@ -712,4 +801,31 @@ async def trigger_context_change_hook(change_type: str, context: Dict[str, Any])
     await HookRegistry.trigger_event_hooks("context_change", {
         "type": change_type,
         "context": context
+    })
+
+async def trigger_mcp_user_request_hook(user_request: str, context: Dict[str, Any] = None) -> None:
+    """Trigger MCP user request hook for proactive tool suggestions."""
+    await HookRegistry.trigger_event_hooks("user_request", {
+        "request": user_request,
+        "context": context or {}
+    })
+
+async def trigger_mcp_tool_about_to_execute_hook(tool_name: str, context: Dict[str, Any] = None) -> None:
+    """Trigger MCP tool about to execute hook for alternative suggestions."""
+    await HookRegistry.trigger_event_hooks("tool_about_to_execute", {
+        "tool_name": tool_name,
+        "context": context or {}
+    })
+
+async def trigger_mcp_context_change_hook(context: Dict[str, Any]) -> None:
+    """Trigger MCP context change hook for context-aware suggestions."""
+    await HookRegistry.trigger_event_hooks("mcp_context_change", {
+        "context": context
+    })
+
+async def trigger_mcp_error_occurred_hook(error: str, context: Dict[str, Any] = None) -> None:
+    """Trigger MCP error occurred hook for error resolution suggestions."""
+    await HookRegistry.trigger_event_hooks("error_occurred", {
+        "error": error,
+        "context": context or {}
     })

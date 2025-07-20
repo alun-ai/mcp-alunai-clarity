@@ -51,7 +51,7 @@ class MemoryDomainManager:
         await self.autocode_domain.initialize()
         
         # Initialize AutoCode command learner with domain manager reference
-        self.autocode_domain.set_command_learner(self)
+        await self.autocode_domain.set_command_learner(self)
         
         logger.info("Memory Domain Manager initialized")
     

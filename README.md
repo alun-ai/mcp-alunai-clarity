@@ -11,7 +11,7 @@ An advanced MCP (Model Context Protocol) server implementation featuring **high-
 
 This project revolutionizes memory management for Claude with a **high-performance vector database backend** and **proactive memory consultation system**. The **AutoCodeIndex** provides intelligent code project assistance with **automatic memory referencing** that ensures relevant context is always available.
 
-## 🎯 Key Improvements in v0.3.0
+## 🎯 Key Improvements in v0.4.0
 
 ### **🚀 High-Performance Vector Database**
 - **Qdrant Integration**: Replaced JSON storage with enterprise-grade vector database
@@ -24,6 +24,13 @@ This project revolutionizes memory management for Claude with a **high-performan
 - **Context-Aware Queries**: Smart memory retrieval based on current files, commands, and tasks
 - **Zero-Friction Integration**: Seamless memory consultation without interrupting workflow
 
+### **🔍 Real MCP Server Discovery (New)**
+- **Automatic MCP Detection**: Discovers actual installed MCP servers from Claude Desktop config
+- **Live Tool Discovery**: Connects to running servers to get real tool definitions and schemas
+- **Smart Tool Inference**: Infers tools when live discovery fails, based on server patterns
+- **Proactive Tool Suggestions**: Claude suggests MCP tools before using scripts or indirect methods
+- **Multi-Source Discovery**: Configuration files, environment variables, live servers, and known tools
+
 ## Features
 
 ### **🔥 Core Memory System (Enhanced)**
@@ -34,6 +41,14 @@ This project revolutionizes memory management for Claude with a **high-performan
 - **Real-Time Updates**: Atomic operations with no file rewriting
 - **Memory Access Tracking**: Usage patterns and optimization recommendations
 
+### **🔍 MCP Awareness System (New)**
+- **Real MCP Server Discovery**: Automatically discovers installed MCP servers from configuration
+- **Live Tool Indexing**: Connects to running servers to catalog available tools with real schemas
+- **Proactive Tool Suggestions**: Claude suggests MCP tools before indirect approaches
+- **Smart Pattern Recognition**: Infers tools from server names when live discovery fails
+- **Multi-Source Discovery**: Configuration files, environment variables, live servers, and fallbacks
+- **Context-Aware Recommendations**: Tool suggestions based on current files, tasks, and errors
+
 ### **AutoCodeIndex Intelligence System**
 - **Intelligent Command Suggestions**: Context-aware command recommendations with confidence scoring
 - **Project Pattern Recognition**: Automatic detection of frameworks, architectures, and coding patterns
@@ -43,10 +58,11 @@ This project revolutionizes memory management for Claude with a **high-performan
 - **Automatic File & Command Tracking**: Zero-friction learning from Claude's interactions
 
 ### **🎯 Advanced Capabilities**
-- **12+ MCP Tools**: Comprehensive toolset including new performance monitoring
+- **17+ MCP Tools**: Comprehensive toolset including new performance monitoring and MCP awareness
 - **4 Specialized Memory Types**: project_pattern, command_pattern, session_summary, bash_execution
 - **Proactive Memory Tools**: `suggest_memory_queries`, `check_relevant_memories`
 - **Performance Tools**: `qdrant_performance_stats`, `optimize_qdrant_collection`
+- **MCP Awareness Tools**: Real-time MCP server discovery and proactive tool suggestions
 - **Automatic Hook System**: Seamless integration with Claude's normal operations
 - **Multi-Language Support**: TypeScript, JavaScript, Python, Rust, Go, Java, and more
 - **Framework Detection**: React, Vue, Angular, Django, Flask, FastAPI, and others
@@ -66,10 +82,10 @@ This project revolutionizes memory management for Claude with a **high-performan
 
 ## Quick Start
 
-### 🚀 High-Performance Memory + Proactive AutoCode (v0.3.0)
+### 🚀 High-Performance Memory + MCP Awareness (v0.4.0)
 
-**New users:** Get instant high-performance memory with Qdrant vector database.
-**Existing users:** [Migrate from JSON](#-migration-from-json-storage) for 10-100x performance boost.
+**New users:** Get instant high-performance memory with Qdrant vector database plus automatic MCP server discovery.
+**Existing users:** [Migrate from JSON](#-migration-from-json-storage) for 10-100x performance boost and MCP awareness.
 
 #### **1. Docker Setup (Recommended)**
 
@@ -79,9 +95,9 @@ This project revolutionizes memory management for Claude with a **high-performan
     "alunai-memory": {
       "command": "docker",
       "args": [
-        "run", "-i", "--rm", 
+        "run", "-i", "--rm",
         "-v", "./.claude/alunai-memory:/app/data",
-        "ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1"
+        "ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0"
       ],
       "type": "stdio"
     }
@@ -91,7 +107,13 @@ This project revolutionizes memory management for Claude with a **high-performan
 
 #### **2. Enable Proactive Features with `CLAUDE.md`**
 ```markdown
-You have high-performance persistent memory with proactive consultation.
+You have high-performance persistent memory with proactive consultation and MCP awareness.
+
+🔧 **MCP TOOLS AVAILABLE** - Use these FIRST before scripts or indirect methods:
+- Your system will automatically discover MCP tools from your configuration
+- Use postgres MCP tools instead of psql scripts
+- Use playwright MCP tools instead of manual browsing
+- Use memory MCP tools proactively for context
 
 Before taking actions, automatically check relevant memories using:
 - suggest_memory_queries: Get recommended memory searches
@@ -115,91 +137,6 @@ Monitor your memory system performance:
 | 1K memories | ~10ms | ~0.1ms | **100x faster** |
 | 10K memories | ~100ms | ~1ms | **100x faster** |
 | 100K memories | ~1000ms+ | ~2ms | **500x faster** |
-
-## 🔄 **Migration from JSON Storage**
-
-**⚠️ EXISTING USERS: Migrate for 10-100x Performance Boost**
-
-If you're upgrading from a previous version with JSON storage, follow these steps:
-
-### **Quick Migration**
-
-#### **Option A: Docker Migration (Recommended)**
-
-```bash
-# 1. Pull latest Docker image
-docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
-
-# 2. Find your JSON file (common locations)
-# ~/.memory_mcp/data/memory.json
-# ./.claude/alunai-memory/memory.json  
-# ./memory.json
-
-# 3. Run migration using CLI in Docker container
-docker run --entrypoint="python" \
-           -v /path/to/your/memory.json:/tmp/memory.json \
-           -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1 \
-           -m memory_mcp.cli.import_json /tmp/memory.json
-```
-
-#### **Option B: Direct Python (If installed locally)**
-
-```bash
-# 1. Install updated version
-pip install --upgrade mcp-alunai-memory
-
-# 2. Run migration command
-python -m memory_mcp.cli.import_json /path/to/your/memory.json
-```
-
-### **Migration Results**
-```
-✅ Import verification PASSED
-   - Total memories in Qdrant: 1,247
-   - Indexed memories: 1,247
-   - Search functionality: Working
-   - Performance improvement: 100x faster search
-```
-
-### **Migration Options**
-
-#### **Docker Migration Options**
-
-```bash
-# Inspect JSON file before migration
-docker run --entrypoint="" \
-           -v /path/to/memory.json:/tmp/memory.json \
-           ghcr.io/alun-ai/mcp-alunai-memory:latest \
-           python -c "import json; data=json.load(open('/tmp/memory.json')); print(f'Found {len(data)} memories to migrate')"
-
-# Basic migration (recommended approach)
-docker run --entrypoint="" \
-           -v /path/to/memory.json:/tmp/memory.json \
-           -v ./.claude/alunai-memory:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-memory:latest \
-           python -c "import asyncio, sys; sys.path.append('/app'); from memory_mcp.utils.json_importer import import_json_memories; asyncio.run(import_json_memories('/tmp/memory.json'))"
-
-# Note: Advanced options (dry-run, batch-size, verbose) available with local CLI installation
-```
-
-#### **Direct Python Options**
-
-```bash
-# For local Python installations
-python -m memory_mcp.cli.import_json memory.json --dry-run
-python -m memory_mcp.cli.import_json memory.json --batch-size 1000
-python -m memory_mcp.cli.import_json memory.json --verbose
-```
-
-📖 **Complete Migration Guide: [QDRANT_MIGRATION.md](QDRANT_MIGRATION.md)**
-
-### **Migration Support**
-- **Automatic verification** ensures 100% data integrity
-- **Batch processing** handles large datasets efficiently  
-- **Progress tracking** shows real-time migration status
-- **Error recovery** with detailed logging and retry options
-- **Rollback safety** - original JSON files remain untouched
 
 ### Option 1: Using Docker (Full Configuration)
 
@@ -238,7 +175,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
-        "ghcr.io/alun-ai/mcp-alunai-memory:latest"
+        "ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0"
       ],
       "env": {
         "MEMORY_FILE_PATH": "/data/memory.json",
@@ -362,21 +299,32 @@ Once enabled, you'll immediately notice:
 9. **qdrant_performance_stats** - Detailed performance metrics and recommendations
 10. **optimize_qdrant_collection** - Optimize vector database for better performance
 
+#### **🔍 MCP Awareness Tools (New)**
+11. **discover_mcp_tools** - Automatically discover installed MCP servers and tools
+12. **suggest_mcp_alternatives** - Suggest MCP tools instead of indirect methods
+13. **get_mcp_tool_info** - Get detailed information about available MCP tools
+
 #### **🚀 AutoCodeIndex Intelligence**
-11. **suggest_command** - Get smart command suggestions based on intent
-12. **get_project_patterns** - Analyze and retrieve project patterns
-13. **find_similar_sessions** - Find related past work sessions
-14. **get_continuation_context** - Get context for continuing tasks
-15. **suggest_workflow_optimizations** - Improve workflows based on history
-16. **get_learning_progression** - Track learning progress on topics
-17. **autocode_stats** - View AutoCodeIndex system statistics
+14. **suggest_command** - Get smart command suggestions based on intent
+15. **get_project_patterns** - Analyze and retrieve project patterns
+16. **find_similar_sessions** - Find related past work sessions
+17. **get_continuation_context** - Get context for continuing tasks
+18. **suggest_workflow_optimizations** - Improve workflows based on history
+19. **get_learning_progression** - Track learning progress on topics
+20. **autocode_stats** - View AutoCodeIndex system statistics
 
 ### 📝 **System Prompt**
-For optimal functionality with proactive memory consultation, add this to your Claude system prompt:
+For optimal functionality with proactive memory consultation and MCP awareness, add this to your Claude system prompt:
 
 ```
-This Claude instance has been enhanced with high-performance persistent memory, 
-proactive memory consultation, and AutoCodeIndex capabilities. 
+This Claude instance has been enhanced with high-performance persistent memory,
+proactive memory consultation, MCP awareness, and AutoCodeIndex capabilities.
+
+🔧 **MCP TOOLS AVAILABLE** - Use these FIRST before scripts or indirect methods:
+- Your system automatically discovers MCP tools from your configuration
+- ALWAYS prefer MCP tools over scripts (postgres tools vs psql, playwright vs manual browsing)
+- Check for MCP alternatives before using shell commands or writing code
+- Use memory tools proactively to enhance responses with relevant context
 
 PROACTIVE MEMORY USAGE:
 - Before taking actions, automatically use suggest_memory_queries and check_relevant_memories
@@ -386,6 +334,7 @@ PROACTIVE MEMORY USAGE:
 AUTOMATIC CAPABILITIES:
 - Remember important details across conversations with vector search
 - Learn from coding patterns and command usage with performance tracking
+- Discover and suggest MCP tools dynamically based on installed servers
 - Provide intelligent assistance based on project context and historical data
 - Monitor performance with qdrant_performance_stats and optimize when needed
 ```
@@ -473,11 +422,13 @@ AutoCodeIndex provides extensive configuration options:
 
 ### 📊 **Implementation Statistics**
 
-- **12,000+ lines of code** across 15+ specialized modules
-- **17 MCP tools** including high-performance vector search and proactive consultation
+- **15,000+ lines of code** across 20+ specialized modules
+- **20+ MCP tools** including high-performance vector search, proactive consultation, and MCP awareness
 - **4 specialized memory types** for comprehensive pattern storage
 - **Qdrant vector database** with sub-millisecond search capabilities
+- **Real MCP server discovery system** with live tool indexing and smart inference
 - **Proactive memory consultation system** with automatic context awareness
+- **MCP awareness hooks** for intelligent tool suggestions and error resolution
 - **Performance monitoring** with optimization recommendations
 - **Automatic hook system** for zero-friction operation
 - **Multi-language support** for major programming languages
@@ -491,7 +442,7 @@ AutoCodeIndex provides extensive configuration options:
 - [Migration Guide](QDRANT_MIGRATION.md) - **Migrate from JSON to Qdrant for 10-100x performance boost**
 - [Proactive AutoCode Guide](docs/proactive_autocode.md) - *Enable intelligent proactive suggestions*
 
-### **📖 User Guides** 
+### **📖 User Guides**
 - [User Guide](docs/user_guide.md) - *Complete usage instructions*
 - [AutoCodeIndex Guide](docs/autocode_guide.md) - *Comprehensive AutoCodeIndex documentation*
 - [Performance Optimization](docs/performance.md) - *Optimize your memory system*
@@ -502,7 +453,9 @@ AutoCodeIndex provides extensive configuration options:
 - [Architecture](docs/architecture.md) - *Technical architecture*
 - [Claude Integration Guide](docs/claude_integration.md) - *Claude Desktop integration*
 
-### **🎯 New in v0.3.0**
+### **🎯 New in v0.4.0**
+- **[Real MCP Server Discovery](docs/mcp_awareness.md)** - Automatic MCP tool discovery and indexing
+- **[MCP Awareness System](docs/mcp_awareness.md)** - Proactive tool suggestions and smart alternatives
 - **[Qdrant Vector Database](QDRANT_MIGRATION.md)** - High-performance storage backend
 - **[Proactive Memory Consultation](docs/proactive_memory.md)** - Automatic memory referencing
 - **[Performance Monitoring](docs/performance_monitoring.md)** - Stats and optimization tools
@@ -513,6 +466,90 @@ The `examples` directory contains scripts demonstrating how to interact with MCP
 
 - `store_memory_example.py`: Example of storing a memory
 - `retrieve_memory_example.py`: Example of retrieving memories
+- `mcp_awareness_example.py`: Example of MCP server discovery and tool suggestions
+
+### **🔍 MCP Awareness Examples**
+
+**Automatic Tool Discovery:**
+```python
+# Your Claude Desktop config.json has:
+{
+  "mcpServers": {
+    "postgres": {"command": "npx", "args": ["@postgresql/mcp-server"]},
+    "playwright": {"command": "npx", "args": ["@playwright/mcp-server"]}
+  }
+}
+
+# Claude automatically discovers and suggests:
+💡 **MCP Tools Available:**
+- postgres_query: Execute SQL queries directly
+- playwright_navigate: Automate web browser interactions  
+- alunai-memory_store: Store persistent memories
+```
+
+**Proactive Suggestions:**
+```markdown
+User: "I need to query the database for user information"
+
+Claude: 💡 **Before writing SQL scripts, consider these MCP tools:**
+- **postgres_query**: Execute SQL queries against PostgreSQL databases directly
+- **postgres_schema**: Get database schema information
+- Why relevant: Matches keywords: database, query
+- MCP tools are often more reliable than shell commands!
+```
+
+**Context-Aware Recommendations:**
+```markdown
+# When working with .sql files:
+Claude: 💡 **Context-Aware MCP Tools**: Based on your current context:
+- **postgres_query**: Execute SQL queries against PostgreSQL databases
+
+# When errors occur:
+Claude: 🔧 **Error Resolution**: These MCP tools might help resolve the error:
+- **postgres_query**: Execute SQL queries against PostgreSQL databases
+```
+
+## 🔄 **Migration from JSON Storage**
+
+**⚠️ EXISTING USERS: Migrate for 10-100x Performance Boost**
+
+If you're upgrading from a previous version with JSON storage, follow these steps:
+
+### **Quick Migration**
+
+#### **Option A: Docker Migration (Recommended)**
+
+```bash
+# 1. Pull latest Docker image
+docker pull ghcr.io/alun-ai/mcp-alunai-memory:v0.3.1
+
+# 2. Find your JSON file (common locations)
+# ~/.memory_mcp/data/memory.json
+# ./.claude/alunai-memory/memory.json
+# ./memory.json
+
+# 3. Run migration using CLI in Docker container
+docker run --entrypoint="python" \
+           -v /path/to/your/memory.json:/tmp/memory.json \
+           -v ./.claude/alunai-memory:/app/data \
+           ghcr.io/alun-ai/mcp-alunai-memory:v0.4.0 \
+           -m memory_mcp.cli.import_json /tmp/memory.json
+```
+
+### **Migration Results**
+```
+✅ Import verification PASSED
+   - Total memories in Qdrant: 1,247
+   - Indexed memories: 1,247
+   - Search functionality: Working
+   - Performance improvement: 100x faster search
+```
+### **Migration Support**
+- **Automatic verification** ensures 100% data integrity
+- **Batch processing** handles large datasets efficiently
+- **Progress tracking** shows real-time migration status
+- **Error recovery** with detailed logging and retry options
+- **Rollback safety** - original JSON files remain untouched
 
 ## Troubleshooting
 

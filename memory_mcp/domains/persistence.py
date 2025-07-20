@@ -536,6 +536,85 @@ class QdrantPersistenceDomain:
         except Exception as e:
             logger.error(f"Failed to create backup: {e}")
             return False
+    
+    async def get_metadata(self, key: str) -> Optional[Any]:
+        """
+        Get metadata value by key.
+        
+        Args:
+            key: Metadata key
+            
+        Returns:
+            Metadata value or None if not found
+        """
+        try:
+            # Search for metadata points with specific key
+            search_result = self.client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(
+                    must=[
+                        FieldCondition(
+                            key="memory_type",
+                            match=MatchValue(value="metadata")
+                        ),
+                        FieldCondition(
+                            key="metadata_key",
+                            match=MatchValue(value=key)
+                        )
+                    ]
+                ),
+                limit=1,
+                with_payload=True
+            )
+            
+            if search_result[0]:
+                return search_result[0][0].payload.get("metadata_value")
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Failed to get metadata {key}: {e}")
+            return None
+    
+    async def set_metadata(self, key: str, value: Any) -> bool:
+        """
+        Set metadata value by key.
+        
+        Args:
+            key: Metadata key
+            value: Metadata value
+            
+        Returns:
+            Success flag
+        """
+        try:
+            # Create metadata point
+            metadata_id = f"metadata_{key}"
+            
+            point = PointStruct(
+                id=metadata_id,
+                vector=[0.0] * self.embedding_dimensions,  # Dummy vector for metadata
+                payload={
+                    "memory_type": "metadata",
+                    "metadata_key": key,
+                    "metadata_value": value,
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat(),
+                    "tier": "system"
+                }
+            )
+            
+            self.client.upsert(
+                collection_name=self.COLLECTION_NAME,
+                points=[point]
+            )
+            
+            logger.debug(f"Set metadata: {key} = {value}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to set metadata {key}: {e}")
+            return False
 
 
 # Maintain compatibility with existing code
