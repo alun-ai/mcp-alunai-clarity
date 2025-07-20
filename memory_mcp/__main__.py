@@ -38,9 +38,18 @@ def main() -> None:
     # Configure logging
     log_level = "DEBUG" if args.debug else "INFO"
     logger.remove()
+    # Use stdout for INFO/DEBUG messages, stderr only for actual errors
+    logger.add(
+        os.sys.stdout,
+        level=log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+        filter=lambda record: record["level"].name not in ["ERROR", "CRITICAL"]
+    )
+    
+    # Separate handler for actual errors
     logger.add(
         os.sys.stderr,
-        level=log_level,
+        level="ERROR",
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
     )
     
