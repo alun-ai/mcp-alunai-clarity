@@ -297,7 +297,7 @@ async def import_json_memories(
             # Use default configuration
             config = {
                 "qdrant": {
-                    "path": "./qdrant_data",
+                    "path": "./.claude/alunai-clarity/qdrant",
                     "index_params": {
                         "m": 16,
                         "ef_construct": 200,

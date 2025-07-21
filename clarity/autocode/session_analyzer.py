@@ -787,3 +787,71 @@ class SessionAnalyzer:
             "message_count": len(conversation_log),
             "generated_at": datetime.utcnow().isoformat()
         }
+
+    async def initialize(self) -> None:
+        """Initialize the session analyzer."""
+        logger.debug("SessionAnalyzer initialized")
+
+    async def generate_summary(self, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Generate a session summary from session data.
+        
+        This method is called by SessionManager and provides a simplified interface
+        for generating session summaries.
+        
+        Args:
+            session_data: Dictionary containing session information including conversation_log
+            
+        Returns:
+            Dictionary containing the session summary analysis
+        """
+        try:
+            conversation_log = session_data.get("conversation_log", [])
+            
+            # If conversation log is empty or too short, create minimal summary
+            if len(conversation_log) < self.analysis_config.get("min_session_length", 3):
+                return {
+                    "session_id": session_data.get("session_id", "unknown"),
+                    "start_time": session_data.get("start_time"),
+                    "duration_minutes": session_data.get("duration_minutes", 0),
+                    "file_access_count": len(session_data.get("file_access_log", [])),
+                    "bash_execution_count": len(session_data.get("bash_execution_log", [])),
+                    "summary": f"Brief session with {len(conversation_log)} messages",
+                    "summary_type": "minimal",
+                    "generated_at": datetime.utcnow().isoformat()
+                }
+            
+            # Use the full analyze_session method to generate comprehensive analysis
+            analysis_results = await self.analyze_session(conversation_log)
+            
+            # Enhance the analysis with session-specific data
+            analysis_results["session_id"] = session_data.get("session_id", "unknown")
+            analysis_results["start_time"] = session_data.get("start_time")
+            analysis_results["duration_minutes"] = session_data.get("duration_minutes", 0)
+            analysis_results["file_access_log"] = session_data.get("file_access_log", [])
+            analysis_results["bash_execution_log"] = session_data.get("bash_execution_log", [])
+            
+            # Generate human-readable summary text
+            tasks_analysis = analysis_results.get("tasks_analysis", {})
+            completed_tasks = len(tasks_analysis.get("completed_tasks", []))
+            files_analysis = analysis_results.get("files_analysis", {})
+            modified_files = len(files_analysis.get("modified_files", []))
+            
+            summary_text = f"Session completed {completed_tasks} tasks and modified {modified_files} files"
+            if analysis_results.get("duration_minutes", 0) > 0:
+                summary_text += f" over {analysis_results['duration_minutes']:.1f} minutes"
+            
+            analysis_results["summary"] = summary_text
+            
+            logger.info(f"Generated comprehensive session summary: {completed_tasks} tasks, {modified_files} files")
+            return analysis_results
+            
+        except Exception as e:
+            logger.error(f"Error in generate_summary: {e}")
+            # Return error summary as fallback
+            return {
+                "session_id": session_data.get("session_id", "unknown"),
+                "summary_type": "error",
+                "error": str(e),
+                "generated_at": datetime.utcnow().isoformat()
+            }

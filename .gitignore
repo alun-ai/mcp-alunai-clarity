@@ -10,3 +10,14 @@ __pycache__/
 mcp-alunai-clarity.*
 venv/
 .pytest_cache
+logs/
+debug_scripts
+
+# Legacy data directories (now consolidated into .claude/alunai-clarity/)
+data/
+qdrant_data/
+
+# Backup and temporary files
+*-backup/
+*.log
+*.tmp

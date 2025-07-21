@@ -1,22 +1,22 @@
 {
   "qdrant": {
-    "path": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/data/qdrant",
+    "path": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/.claude/alunai-clarity/qdrant",
     "index_params": {
       "m": 16,
       "ef_construct": 200,
-      "full_scan_threshold": 10000
+      "full_scan_threshold": 1
     }
   },
   "embedding": {
     "default_model": "sentence-transformers/all-MiniLM-L6-v2",
     "dimensions": 384,
-    "cache_dir": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/data/cache"
+    "cache_dir": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/.claude/alunai-clarity/cache"
   },
   "alunai-clarity": {
     "max_short_term_items": 1000,
     "max_long_term_items": 10000,
     "max_archival_items": 100000,
-    "legacy_file_path": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/data/memory.json"
+    "legacy_file_path": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/.claude/alunai-clarity/memory.json"
   },
   "autocode": {
     "enabled": true,

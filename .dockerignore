@@ -16,6 +16,10 @@ DEMO_SCRIPT.md
 LOCAL_DEVELOPMENT.md
 LOCAL_TESTING_SUMMARY.md
 FIXES_APPLIED.md
+COMPREHENSIVE_TEST_SUITE.md
+HOOK_VALIDATION_SUITE.md
+TROUBLESHOOTING.md
+TESTING.md
 docs/
 *.md
 
@@ -23,6 +27,8 @@ docs/
 start-local-dev.sh
 stop-local-dev.sh
 test-*.sh
+debug_scripts/
+setup.sh
 scripts/
 dev-tools/
 
@@ -99,6 +105,7 @@ temp/
 
 # Local storage and cache (development)
 qdrant_data/
+data/
 .qdrant_coordination/
 cache/
 .cache/
@@ -158,12 +165,25 @@ yarn.lock
 poetry.lock
 Pipfile.lock
 
-# Local development databases
+# Local development databases and config files
 *.sqlite
 *.db
 *.sqlite3
+config/test_config.json
+mcp-config-example.json
 
 # Temporary files
 *.tmp
 *.temp
 .temporary/
+
+# Project-specific development files
+mcp_server.log
+*.code-workspace
+mcp-alunai-clarity.code-workspace
+
+# Validation and debug files
+validate_*.py
+debug_*.py
+simple_*.py
+fix_*.py

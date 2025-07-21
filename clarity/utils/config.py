@@ -217,7 +217,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             "debug": False
         },
         "qdrant": {
-            "path": os.path.expanduser("~/.clarity/qdrant_data"),
+            "path": os.path.expanduser("~/.claude/alunai-clarity/qdrant"),
             "host": "localhost",
             "port": 6333,
             "prefer_grpc": False,

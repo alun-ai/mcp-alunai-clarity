@@ -13,7 +13,14 @@ Featuring **high-performance Qdrant vector database** storage, **proactive memor
 
 Alunai Clarity transforms Claude and other MCP-aware systems by providing **cognitive abilities** through advanced memory management, **proactive intelligence**, and **real-time MCP awareness**. The system enables AI assistants to maintain context, learn from interactions, and intelligently leverage available tools.
 
-## 🎯 Key Improvements in v0.4.0
+## 🎯 Key Improvements in v1.0.0
+
+### **🧠 Sequential Thinking Integration (New)**
+- **5-Stage Thinking Process**: Problem Definition → Research → Analysis → Synthesis → Conclusion
+- **Structured Problem Solving**: Systematic approach to complex coding challenges
+- **Assumption Tracking**: Monitor and challenge assumptions throughout thinking process
+- **Relationship Mapping**: Connect thoughts and build comprehensive understanding
+- **Action Plan Generation**: Convert structured thinking into concrete coding steps
 
 ### **🚀 High-Performance Vector Database**
 - **Qdrant Integration**: Replaced JSON storage with enterprise-grade vector database
@@ -21,12 +28,18 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
 - **Unlimited Scalability**: Handle millions of memories without performance degradation
 - **Advanced Filtering**: Vector similarity + metadata filtering in single queries
 
-### **🧠 Proactive Memory Consultation**
+### **🧠 Enhanced AutoCode Intelligence**
+- **Structured Command Analysis**: Apply 5-stage thinking to complex command suggestions
+- **Pattern Analysis Enhancement**: Structured thinking for project pattern detection
+- **Session Analysis**: Apply systematic thinking to coding session analysis
+- **Risk Assessment**: Identify and mitigate risks in coding decisions
+
+### **🔧 Proactive Memory Consultation**
 - **Automatic Memory Suggestions**: Claude proactively references relevant memories before actions
 - **Context-Aware Queries**: Smart memory retrieval based on current files, commands, and tasks
 - **Zero-Friction Integration**: Seamless memory consultation without interrupting workflow
 
-### **🔍 Real MCP Server Discovery (New)**
+### **🔍 Real MCP Server Discovery**
 - **Automatic MCP Detection**: Discovers actual installed MCP servers from Claude Desktop config
 - **Live Tool Discovery**: Connects to running servers to get real tool definitions and schemas
 - **Smart Tool Inference**: Infers tools when live discovery fails, based on server patterns
@@ -60,8 +73,10 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
 - **Automatic File & Command Tracking**: Zero-friction learning from Claude's interactions
 
 ### **🎯 Advanced Capabilities**
-- **22 MCP Tools**: Comprehensive toolset including proactive memory, performance monitoring, and MCP awareness
-- **4 Specialized Memory Types**: project_pattern, command_pattern, session_summary, bash_execution
+- **26 MCP Tools**: Comprehensive toolset including structured thinking, proactive memory, and performance monitoring
+- **12 Memory Types**: Including 8 new structured thinking types (structured_thinking, thought_process, thinking_relationship, problem_analysis, research_notes, analysis_result, solution_synthesis, conclusion_summary)
+- **Structured Thinking Tools**: `process_structured_thought`, `generate_thinking_summary`, `continue_thinking_process`, `analyze_thought_relationships`
+- **Enhanced AutoCode Tools**: `suggest_command` with structured thinking analysis, enhanced `get_project_patterns`
 - **Proactive Memory Tools**: `suggest_memory_queries`, `check_relevant_memories`, `configure_proactive_memory`, `get_proactive_memory_stats`
 - **Performance Tools**: `qdrant_performance_stats`, `optimize_qdrant_collection`
 - **MCP Awareness Tools**: Real-time MCP server discovery and proactive tool suggestions
@@ -84,10 +99,10 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
 
 ## Quick Start
 
-### 🚀 High-Performance Memory + MCP Awareness (v0.4.0)
+### 🚀 High-Performance Memory + Structured Thinking (v1.0.0)
 
-**New users:** Get instant high-performance memory with Qdrant vector database plus automatic MCP server discovery.
-**Existing users:** [Migrate from JSON](#-migration-from-json-storage) for 10-100x performance boost and MCP awareness.
+**New users:** Get instant high-performance memory with Qdrant vector database plus revolutionary structured thinking capabilities.
+**Existing users:** [Migrate from JSON](#-migration-from-json-storage) for 10-100x performance boost and structured thinking integration.
 
 #### **1. Docker Setup (Recommended) - Single Volume Mount**
 
@@ -197,6 +212,8 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
+        "-e", 
+        "AUTOCODE_STRUCTURED_THINKING_ENABLED",
         "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
       "env": {
@@ -210,7 +227,8 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_TRACK_BASH_COMMANDS": "true",
         "AUTOCODE_GENERATE_SESSION_SUMMARIES": "true",
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD": "0.2",
-        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5"
+        "AUTOCODE_SIMILARITY_THRESHOLD": "0.5",
+        "AUTOCODE_STRUCTURED_THINKING_ENABLED": "true"
       },
       "type": "stdio"
     }
@@ -593,6 +611,23 @@ docker run --entrypoint="python" \
 3. For dependency conflicts: `pip install qdrant-client>=1.7.0`
 4. Try using Docker for simplified deployment
 5. **Migration help**: See comprehensive [Migration Guide](QDRANT_MIGRATION.md)
+
+## Documentation
+
+### Core Documentation
+- **[Structured Thinking Guide](docs/structured_thinking.md)**: Complete guide to 5-stage structured thinking integration
+- **[MCP Tools Reference](docs/mcp_tools_reference.md)**: All 26 MCP tools with parameters and examples
+- **[AutoCode Enhancements](docs/autocode_enhancements.md)**: Enhanced intelligence capabilities
+- **[Usage Examples](docs/usage_examples.md)**: Practical examples and API reference
+- **[User Guide](docs/user_guide.md)**: Getting started and configuration
+- **[Proactive Memory](docs/proactive_memory.md)**: Automatic memory consultation
+- **[MCP Awareness](docs/mcp_awareness.md)**: Real-time MCP server discovery
+
+### Advanced Topics
+- **[Architecture](docs/architecture.md)**: System design and components
+- **[AutoCode Guide](docs/autocode_guide.md)**: Code intelligence features
+- **[Docker Usage](docs/docker_usage.md)**: Container deployment
+- **[Claude Integration](docs/claude_integration.md)**: Claude Desktop setup
 
 ## Contributing
 

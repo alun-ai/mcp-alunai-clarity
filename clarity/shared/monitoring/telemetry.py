@@ -20,7 +20,7 @@ class TelemetryReporter:
     
     def __init__(self, export_path: Optional[Path] = None):
         self.metrics_collector = get_metrics_collector()
-        self.export_path = export_path or Path("./data/telemetry")
+        self.export_path = export_path or Path("./.claude/alunai-clarity/telemetry")
         self.export_path.mkdir(parents=True, exist_ok=True)
         
         self._last_export = time.time()

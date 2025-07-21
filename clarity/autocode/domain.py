@@ -17,6 +17,7 @@ from .pattern_detector import PatternDetector
 from .session_analyzer import SessionAnalyzer
 from .history_navigator import HistoryNavigator
 from .hook_manager import HookManager
+from .structured_thinking_extension import StructuredThinkingExtension
 
 
 class AutoCodeDomain:
@@ -60,6 +61,13 @@ class AutoCodeDomain:
         self.session_analyzer = None
         self.history_navigator = None
         self.hook_manager = None
+        
+        # Add structured thinking extension
+        self.structured_thinking = StructuredThinkingExtension(persistence_domain)
+        
+        # Enhanced configuration for structured thinking
+        self.enable_structured_thinking = config.get("autocode", {}).get("structured_thinking", {}).get("enabled", True)
+        self.thinking_integration_level = config.get("autocode", {}).get("structured_thinking", {}).get("integration_level", "enhanced")
         
     @log_operation(
         operation_name="autocode_domain_initialization",
@@ -208,8 +216,16 @@ class AutoCodeDomain:
             
         try:
             if self.session_analyzer:
-                # Use advanced session analyzer
-                summary = await self.session_analyzer.analyze_session(conversation_log)
+                # Use advanced session analyzer - create session data for the generate_summary method
+                session_data = {
+                    "conversation_log": conversation_log,
+                    "session_id": f"session_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
+                    "start_time": datetime.utcnow().isoformat(),
+                    "duration_minutes": 0,  # Placeholder since we don't track real duration here
+                    "file_access_log": [],  # Would be populated in a real session
+                    "bash_execution_log": []  # Would be populated in a real session
+                }
+                summary = await self.session_analyzer.generate_summary(session_data)
             else:
                 # Fallback to basic analysis
                 summary = await self._analyze_session(conversation_log)
@@ -226,7 +242,7 @@ class AutoCodeDomain:
         context: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
         """
-        Suggest optimal commands for given intent.
+        Enhanced command suggestion with optional structured thinking analysis.
         
         Args:
             intent: What the user wants to accomplish
@@ -236,15 +252,33 @@ class AutoCodeDomain:
             List of suggested commands with metadata, ranked by success probability
         """
         try:
-            if self.command_learner:
-                # Use advanced command learner
-                return await self.command_learner.suggest_command(intent, context)
-            else:
-                # Fallback to basic suggestions
-                basic_suggestions = await self._get_command_suggestions(intent, context)
-                # Convert to expected format
-                return [{"command": cmd, "confidence": 0.5, "reasoning": "Basic suggestion"} 
-                       for cmd in basic_suggestions]
+            # Get base suggestions using existing logic
+            base_suggestions = await self._get_base_command_suggestions(intent, context)
+            
+            # Apply structured thinking if enabled and context is complex
+            if self.enable_structured_thinking and self._is_complex_context(intent, context):
+                thinking_analysis = await self.structured_thinking.analyze_problem_with_stages(
+                    problem=intent,
+                    project_context=context
+                )
+                
+                # Enhance suggestions with thinking insights
+                enhanced_suggestions = []
+                for suggestion in base_suggestions:
+                    enhanced_suggestion = suggestion.copy()
+                    enhanced_suggestion["thinking_analysis"] = {
+                        "session_id": thinking_analysis["session_id"],
+                        "confidence_boost": 0.1,  # Boost confidence due to structured analysis
+                        "research_backing": len(thinking_analysis["research_findings"]),
+                        "component_analysis": thinking_analysis["analysis_components"]
+                    }
+                    enhanced_suggestion["confidence"] = min(suggestion.get("confidence", 0.5) + 0.1, 1.0)
+                    enhanced_suggestions.append(enhanced_suggestion)
+                
+                return enhanced_suggestions
+            
+            return base_suggestions
+            
         except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             await self.logger.audit_error(
                 f"Error suggesting commands for intent '{intent}': {e}",
@@ -257,6 +291,29 @@ class AutoCodeDomain:
             )
             return []
     
+    async def _get_base_command_suggestions(self, intent: str, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Get base command suggestions using existing logic."""
+        if self.command_learner:
+            # Use advanced command learner
+            return await self.command_learner.suggest_command(intent, context)
+        else:
+            # Fallback to basic suggestions
+            basic_suggestions = await self._get_command_suggestions(intent, context)
+            # Convert to expected format
+            return [{"command": cmd, "confidence": 0.5, "reasoning": "Basic suggestion"} 
+                   for cmd in basic_suggestions]
+    
+    def _is_complex_context(self, intent: str, context: Dict[str, Any]) -> bool:
+        """Determine if context warrants structured thinking analysis."""
+        complexity_indicators = [
+            len(intent.split()) > 5,  # Multi-word intent
+            len(context) > 3,  # Rich context
+            any(keyword in intent.lower() for keyword in ["implement", "design", "architecture", "solution"]),
+            context.get("project_type") in ["enterprise", "complex", "multi-service"]
+        ]
+        
+        return sum(complexity_indicators) >= 2
+    
     @log_operation(
         operation_name="get_project_patterns",
         actor="system",
@@ -264,13 +321,13 @@ class AutoCodeDomain:
     )
     async def get_project_patterns(self, project_path: str) -> Dict[str, Any]:
         """
-        Get known patterns for a project.
+        Enhanced project pattern detection with structured thinking analysis.
         
         Args:
             project_path: Path to the project
             
         Returns:
-            Dictionary of known patterns for the project
+            Dictionary of known patterns for the project with structured thinking insights
         """
         try:
             async with self.logger.operation_context(
@@ -279,77 +336,27 @@ class AutoCodeDomain:
                 resource=project_path,
                 audit_event_type=AuditEventType.PROJECT_ANALYSIS
             ):
-                # Validate project path exists
-                import os
-                from pathlib import Path
+                # Get base patterns using existing logic  
+                base_patterns = await self._detect_base_patterns(project_path)
                 
-                self.logger.debug("Validating project path", context={
-                    'project_path': project_path,
-                    'path_exists_os': os.path.exists(project_path),
-                    'path_exists_pathlib': Path(project_path).exists()
-                })
-                
-                if not os.path.exists(project_path) or not Path(project_path).exists():
-                    self.logger.error("Project path does not exist", context={
-                        'project_path': project_path
-                    })
-                    return {}
-                
-                # First try to get cached patterns
-                self.logger.debug("Attempting to retrieve cached patterns")
-                cached_patterns = await self._retrieve_project_patterns(project_path)
-                
-                # Validate cached patterns - ensure they don't contain error data
-                if cached_patterns and isinstance(cached_patterns, dict):
-                    # Check if this is an error response that got cached
-                    if "error" in cached_patterns:
-                        self.logger.warning("Found corrupted cached patterns, clearing cache", context={
-                            'project_path': project_path,
-                            'error': cached_patterns.get('error')
-                        })
-                        cached_patterns = {}
-                
-                # If pattern detector is available and we don't have recent patterns, scan the project
-                if self.pattern_detector and not cached_patterns:
-                    self.logger.info("Scanning project for new patterns")
-                    
-                    # Audit the pattern detection operation
-                    await self.logger.audit_info(
-                        "Starting pattern detection for project",
-                        event_type=AuditEventType.DATA_READ,
-                        actor="pattern_detector",
-                        resource=project_path,
-                        action="scan_project",
-                        context={'operation': 'pattern_detection'}
+                if self.enable_structured_thinking:
+                    # Apply structured thinking to pattern analysis
+                    pattern_analysis = await self.structured_thinking.analyze_problem_with_stages(
+                        problem=f"Analyze patterns in project {project_path}",
+                        project_context={"project_path": project_path, "patterns": base_patterns}
                     )
                     
-                    detected_patterns = await self.pattern_detector.scan_project(project_path)
+                    # Enhance patterns with thinking insights
+                    enhanced_patterns = base_patterns.copy()
+                    enhanced_patterns["structured_analysis"] = {
+                        "thinking_session_id": pattern_analysis["session_id"],
+                        "analysis_depth": "structured_thinking_applied",
+                        "pattern_confidence": self._calculate_pattern_confidence(base_patterns, pattern_analysis)
+                    }
                     
-                    # Validate detected patterns before storing
-                    if detected_patterns and isinstance(detected_patterns, dict) and "error" not in detected_patterns:
-                        # Store detected patterns for future use
-                        await self._store_detected_patterns(project_path, detected_patterns)
-                        
-                        self.logger.info("Successfully detected and stored project patterns", context={
-                            'project_path': project_path,
-                            'pattern_count': len(detected_patterns),
-                            'pattern_types': list(detected_patterns.keys())
-                        })
-                        
-                        return detected_patterns
-                    elif detected_patterns and "error" in detected_patterns:
-                        self.logger.error("Pattern detection failed", context={
-                            'project_path': project_path,
-                            'error': detected_patterns.get('error')
-                        })
-                        return {}
-                    else:
-                        self.logger.warning("Pattern detection returned invalid data", context={
-                            'project_path': project_path
-                        })
-                        return {}
+                    return enhanced_patterns
                 
-                return cached_patterns
+                return base_patterns
                 
         except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             await self.logger.audit_error(
@@ -361,6 +368,92 @@ class AutoCodeDomain:
                 error=e
             )
             return {}
+    
+    async def _detect_base_patterns(self, project_path: str) -> Dict[str, Any]:
+        """Detect base patterns using existing logic."""
+        # Validate project path exists
+        import os
+        from pathlib import Path
+        
+        self.logger.debug("Validating project path", context={
+            'project_path': project_path,
+            'path_exists_os': os.path.exists(project_path),
+            'path_exists_pathlib': Path(project_path).exists()
+        })
+        
+        if not os.path.exists(project_path) or not Path(project_path).exists():
+            self.logger.error("Project path does not exist", context={
+                'project_path': project_path
+            })
+            return {}
+        
+        # First try to get cached patterns
+        self.logger.debug("Attempting to retrieve cached patterns")
+        cached_patterns = await self._retrieve_project_patterns(project_path)
+        
+        # Validate cached patterns - ensure they don't contain error data
+        if cached_patterns and isinstance(cached_patterns, dict):
+            # Check if this is an error response that got cached
+            if "error" in cached_patterns:
+                self.logger.warning("Found corrupted cached patterns, clearing cache", context={
+                    'project_path': project_path,
+                    'error': cached_patterns.get('error')
+                })
+                cached_patterns = {}
+        
+        # If pattern detector is available and we don't have recent patterns, scan the project
+        if self.pattern_detector and not cached_patterns:
+            self.logger.info("Scanning project for new patterns")
+            
+            # Audit the pattern detection operation
+            await self.logger.audit_info(
+                "Starting pattern detection for project",
+                event_type=AuditEventType.DATA_READ,
+                actor="pattern_detector",
+                resource=project_path,
+                action="scan_project",
+                context={'operation': 'pattern_detection'}
+            )
+            
+            detected_patterns = await self.pattern_detector.scan_project(project_path)
+            
+            # Validate detected patterns before storing
+            if detected_patterns and isinstance(detected_patterns, dict) and "error" not in detected_patterns:
+                # Store detected patterns for future use
+                await self._store_detected_patterns(project_path, detected_patterns)
+                
+                self.logger.info("Successfully detected and stored project patterns", context={
+                    'project_path': project_path,
+                    'pattern_count': len(detected_patterns),
+                    'pattern_types': list(detected_patterns.keys())
+                })
+                
+                return detected_patterns
+            elif detected_patterns and "error" in detected_patterns:
+                self.logger.error("Pattern detection failed", context={
+                    'project_path': project_path,
+                    'error': detected_patterns.get('error')
+                })
+                return {}
+            else:
+                self.logger.warning("Pattern detection returned invalid data", context={
+                    'project_path': project_path
+                })
+                return {}
+        
+        return cached_patterns
+    
+    def _calculate_pattern_confidence(self, patterns: Dict[str, Any], thinking_analysis: Dict[str, Any]) -> float:
+        """Calculate confidence in pattern detection based on structured analysis."""
+        base_confidence = patterns.get("detection_confidence", 0.5)
+        
+        # Boost confidence based on research findings
+        research_boost = min(len(thinking_analysis["research_findings"]) * 0.1, 0.3)
+        
+        # Boost based on analysis components
+        analysis_boost = min(len(thinking_analysis["analysis_components"]["components"]) * 0.05, 0.2)
+        
+        return min(base_confidence + research_boost + analysis_boost, 1.0)
     
     async def find_similar_sessions(
         self, 
@@ -757,6 +850,7 @@ class AutoCodeDomain:
         try:
             memory_id = f"mem_{str(uuid.uuid4())}"
             
+            # Create properly formatted memory dictionary for PersistenceDomain.store_memory
             memory = {
                 "id": memory_id,
                 "type": "session_summary",
@@ -765,13 +859,16 @@ class AutoCodeDomain:
                 "metadata": {
                     "category": "session_summary",
                     "session_id": summary.get("session_id"),
-                    "created_at": datetime.utcnow().isoformat()
+                    "created_at": datetime.utcnow().isoformat(),
+                    "autocode_generated": True
                 }
             }
             
-            await self.persistence_domain.store_memory(memory, "short_term")
+            # Store using persistence domain's store_memory method
+            stored_memory_id = await self.persistence_domain.store_memory(memory, "short_term")
             
-            return memory_id
+            logger.info(f"Session summary stored successfully with ID: {stored_memory_id}")
+            return stored_memory_id
             
         except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing session summary: {e}")
@@ -887,3 +984,93 @@ class AutoCodeDomain:
             
         except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing detected patterns for {project_path}: {e}")
+    
+    # New methods specific to structured thinking integration
+    
+    async def create_thinking_session(self, title: str, description: str = None) -> str:
+        """Create a new structured thinking session for complex problems."""
+        from ..domains.structured_thinking import ThinkingSession
+        
+        session = ThinkingSession(
+            title=title,
+            description=description,
+            project_context={"autocode_integration": True}
+        )
+        
+        # Store initial session memory
+        session_memory_id = await self.persistence_domain.store_memory(
+            memory_type="structured_thinking",
+            content=f"Started structured thinking session: {title}",
+            importance=0.7,
+            metadata={
+                "session_id": session.id,
+                "session_title": title,
+                "thinking_session": True,
+                "autocode_integration": True
+            }
+        )
+        
+        return session.id
+    
+    async def apply_structured_thinking_to_session_analysis(self, session_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply structured thinking to session analysis."""
+        
+        # Create thinking session for session analysis
+        thinking_session_id = await self.create_thinking_session(
+            title=f"Session Analysis: {session_data.get('title', 'Unnamed Session')}",
+            description="Applying structured thinking to session analysis"
+        )
+        
+        # Process session data through thinking stages
+        analysis_result = await self.structured_thinking.analyze_problem_with_stages(
+            problem=f"Analyze coding session: {session_data.get('summary', '')}",
+            project_context=session_data.get("context", {})
+        )
+        
+        # Generate enhanced session insights
+        enhanced_insights = {
+            "original_analysis": session_data,
+            "structured_analysis": analysis_result,
+            "thinking_session_id": thinking_session_id,
+            "enhanced_patterns": await self._extract_enhanced_patterns(session_data, analysis_result),
+            "learning_insights": await self._generate_learning_insights(session_data, analysis_result)
+        }
+        
+        return enhanced_insights
+    
+    async def _extract_enhanced_patterns(self, session_data: Dict[str, Any], thinking_analysis: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Extract enhanced patterns from structured thinking analysis."""
+        
+        patterns = []
+        
+        # Pattern extraction based on thinking components
+        for component in thinking_analysis["analysis_components"]["components"]:
+            pattern = {
+                "pattern_type": component,
+                "confidence": 0.8,  # High confidence due to structured analysis
+                "source": "structured_thinking_analysis",
+                "metadata": {
+                    "thinking_session": thinking_analysis["session_id"],
+                    "analysis_stage": "component_identification"
+                }
+            }
+            patterns.append(pattern)
+        
+        return patterns
+    
+    async def _generate_learning_insights(self, session_data: Dict[str, Any], thinking_analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate learning insights from structured thinking."""
+        
+        insights = {
+            "structured_approach_applied": True,
+            "thinking_stages_used": 3,  # Based on analyze_problem_with_stages
+            "research_depth": len(thinking_analysis["research_findings"]),
+            "component_analysis_depth": len(thinking_analysis["analysis_components"]["components"]),
+            "learning_recommendations": [
+                "Continue using structured thinking for complex problems",
+                "Build on identified patterns in future sessions",
+                "Document thinking process for knowledge retention"
+            ]
+        }
+        
+        return insights
