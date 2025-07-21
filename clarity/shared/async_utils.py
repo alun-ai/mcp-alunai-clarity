@@ -265,7 +265,7 @@ class AsyncMetrics:
             durations = self._metrics[operation]
             return {
                 "count": len(durations),
-                "avg": sum(durations) / len(durations),
+                "avg": sum(durations) / len(durations) if durations else 0,
                 "min": min(durations),
                 "max": max(durations)
             }

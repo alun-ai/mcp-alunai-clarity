@@ -69,7 +69,7 @@ class ThinkingAnalyzer:
         return {
             "total_relationships": total_relationships,
             "relationship_distribution": dict(relationship_types),
-            "average_relationships_per_thought": total_relationships / len(thoughts),
+            "average_relationships_per_thought": total_relationships / len(thoughts) if thoughts else 0,
             "most_connected_thought": {
                 "id": most_connected_thought.id if most_connected_thought else None,
                 "thought_number": most_connected_thought.thought_number if most_connected_thought else None,
@@ -126,23 +126,23 @@ class ThinkingAnalyzer:
         factors.append(stage_completion_factor)
         
         # Factor 2: Thought depth (based on content length)
-        avg_content_length = sum(len(t.content) for t in session.thoughts) / len(session.thoughts)
+        avg_content_length = sum(len(t.content) for t in session.thoughts) / len(session.thoughts) if session.thoughts else 0
         depth_factor = min(avg_content_length / 200.0, 1.0)  # Normalize to 200 chars as ideal
         factors.append(depth_factor)
         
         # Factor 3: Relationship richness
         total_relationships = sum(len(t.relationships) for t in session.thoughts)
-        relationship_factor = min(total_relationships / len(session.thoughts), 1.0)
+        relationship_factor = min(total_relationships / len(session.thoughts), 1.0) if session.thoughts else 0
         factors.append(relationship_factor)
         
         # Factor 4: Assumption challenging (indicates critical thinking)
         assumptions_challenged = sum(len(t.assumptions_challenged) for t in session.thoughts)
-        assumption_factor = min(assumptions_challenged / (len(session.thoughts) * 0.5), 1.0)
+        assumption_factor = min(assumptions_challenged / (len(session.thoughts) * 0.5), 1.0) if session.thoughts else 0
         factors.append(assumption_factor)
         
         # Factor 5: Axiom application (indicates principled thinking)
         axioms_applied = sum(len(t.axioms) for t in session.thoughts)
-        axiom_factor = min(axioms_applied / (len(session.thoughts) * 0.3), 1.0)
+        axiom_factor = min(axioms_applied / (len(session.thoughts) * 0.3), 1.0) if session.thoughts else 0
         factors.append(axiom_factor)
         
         # Factor 6: Tag consistency (indicates organized thinking)
@@ -256,7 +256,7 @@ class ThinkingAnalyzer:
             "progression_score": sum(1 for i in range(1, len(stage_indices)) 
                                    if stage_indices[i] >= stage_indices[i-1]) / max(len(stage_indices) - 1, 1),
             "stages_visited": len(set(t.stage for t in sorted_thoughts)),
-            "average_thoughts_per_stage": len(sorted_thoughts) / len(set(t.stage for t in sorted_thoughts))
+            "average_thoughts_per_stage": len(sorted_thoughts) / len(set(t.stage for t in sorted_thoughts)) if sorted_thoughts else 0
         }
 
 

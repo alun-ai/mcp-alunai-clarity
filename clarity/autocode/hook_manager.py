@@ -34,6 +34,9 @@ class HookManager:
         self.domain_manager = domain_manager
         self.autocode_hooks = autocode_hooks
         
+        # Recursion guards to prevent infinite loops
+        self._memory_check_in_progress = False
+        
         # Initialize MCP awareness hooks
         self.mcp_awareness_hooks = MCPAwarenessHooks(domain_manager)
         
@@ -596,6 +599,11 @@ class HookManager:
     
     async def _suggest_contextual_memories(self, tool_name: str, arguments: Dict[str, Any]) -> None:
         """Suggest memories based on tool context."""
+        # Prevent recursive memory suggestions during memory operations
+        if self._memory_check_in_progress:
+            logger.debug("AutoCode: Skipping contextual memory suggestions (recursion prevention)")
+            return
+            
         try:
             if not self.domain_manager:
                 return
@@ -697,7 +705,14 @@ class HookManager:
         This provides a seamless way to invoke comprehensive memory checking
         without Claude having to explicitly call the tool.
         """
+        # Prevent recursive memory checks
+        if self._memory_check_in_progress:
+            logger.debug("AutoCode: Skipping auto-trigger memory check (recursion prevention)")
+            return
+            
         try:
+            self._memory_check_in_progress = True
+            
             # Use the MCP server's check_relevant_memories functionality
             if hasattr(self.domain_manager, 'mcp_server') and self.domain_manager.mcp_server:
                 # This would ideally call the check_relevant_memories tool directly
@@ -716,6 +731,8 @@ class HookManager:
             
         except Exception as e:
             logger.error(f"Error in auto-trigger memory check: {e}")
+        finally:
+            self._memory_check_in_progress = False
     
     def _generate_contextual_query_from_context(self, context: Dict[str, Any]) -> str:
         """Generate a search query from the provided context."""
@@ -1337,43 +1354,264 @@ class HookManager:
     
     async def _auto_trigger_structured_thinking(self, content: str, context: Dict[str, Any] = None) -> None:
         """
-        Automatically trigger structured thinking process.
+        Automatically trigger structured thinking process with smart context integration.
         
-        This mimics the automatic flow initiation from mcp-sequential-thinking.
+        Enhanced with multi-dimensional analysis similar to memory system's sophistication.
         """
         if not self.structured_thinking_extension:
             logger.warning("AutoCode: Structured thinking extension not available")
             return
             
         try:
-            # Extract project context for better analysis
-            project_context = {}
-            if context:
-                project_context = context.get("data", {}).get("project_context", {})
+            # Enhanced context extraction with multi-dimensional analysis
+            enhanced_context = await self._build_enhanced_context(content, context)
             
-            # Auto-analyze the problem using structured thinking
-            analysis_result = await self.structured_thinking_extension.analyze_problem_with_stages(
-                problem=content,
-                project_context=project_context
+            # Use proactive thinking suggestions for smarter triggering
+            thinking_suggestions = await self.structured_thinking_extension.suggest_proactive_thinking(
+                enhanced_context, 
+                limit=5
             )
             
-            if analysis_result and not analysis_result.get("error"):
-                session_id = analysis_result.get("session_id")
-                logger.info(f"AutoCode: Auto-started structured thinking session {session_id}")
+            if not thinking_suggestions.get("suggestions"):
+                logger.debug("AutoCode: No proactive thinking suggestions found")
+                return
+            
+            # Check if any high-confidence suggestions warrant auto-triggering
+            high_confidence_suggestions = [
+                s for s in thinking_suggestions["suggestions"]
+                if s["confidence"] >= 0.8 and s["priority"] == "high"
+            ]
+            
+            if high_confidence_suggestions:
+                # Auto-trigger the best suggestion
+                best_suggestion = high_confidence_suggestions[0]
                 
-                # Track the auto-started session
-                self.active_thinking_sessions[session_id] = {
-                    "auto_started": True,
-                    "trigger_content": content[:100],
-                    "started_at": datetime.utcnow().isoformat(),
-                    "stage": "analysis",
-                    "thought_count": 3
-                }
+                auto_trigger_result = await self.structured_thinking_extension.auto_trigger_thinking_from_context(
+                    enhanced_context,
+                    threshold=0.8
+                )
                 
-                return analysis_result
+                if auto_trigger_result.get("status") == "auto_triggered":
+                    session_id = auto_trigger_result["session_id"]
+                    logger.info(f"AutoCode: Auto-started structured thinking session {session_id} ({best_suggestion['type']})")
+                    
+                    # Track the auto-started session with enhanced metadata
+                    self.active_thinking_sessions[session_id] = {
+                        "auto_started": True,
+                        "trigger_content": content[:100],
+                        "started_at": datetime.utcnow().isoformat(),
+                        "suggestion_type": best_suggestion["type"],
+                        "confidence": best_suggestion["confidence"],
+                        "estimated_time": best_suggestion["estimated_time"],
+                        "context_complexity": enhanced_context.get("complexity_score", 0),
+                        "auto_progression_enabled": True
+                    }
+                    
+                    # Automatically progress to next stage if confidence is very high
+                    if best_suggestion["confidence"] >= 0.9:
+                        await self._attempt_auto_progression(session_id)
+                    
+                    return auto_trigger_result
+            else:
+                logger.debug(f"AutoCode: Thinking suggestions below threshold - highest confidence: {max([s['confidence'] for s in thinking_suggestions['suggestions']], default=0)}")
                 
         except Exception as e:
             logger.error(f"Error auto-triggering structured thinking: {e}")
+    
+    async def _build_enhanced_context(self, content: str, base_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Build enhanced context with multi-dimensional analysis.
+        
+        Similar to memory system's comprehensive context building.
+        """
+        enhanced_context = {
+            "current_task": content,
+            "recent_activity": [],
+            "files_accessed": [],
+            "commands_executed": [],
+            "project_context": {},
+            "complexity_score": 0.0
+        }
+        
+        # Extract from base context
+        if base_context:
+            data = base_context.get("data", {})
+            enhanced_context.update({
+                "project_context": data.get("project_context", {}),
+                "recent_activity": data.get("recent_activity", []),
+                "files_accessed": data.get("files_accessed", []),
+                "commands_executed": data.get("commands_executed", [])
+            })
+        
+        # Use AutoCode hooks to get additional context
+        if self.autocode_hooks:
+            try:
+                # Get project patterns for context enrichment
+                project_patterns = await self.autocode_hooks.get_cached_project_patterns()
+                if project_patterns:
+                    enhanced_context["project_context"].update({
+                        "detected_frameworks": project_patterns.get("frameworks", []),
+                        "detected_languages": project_patterns.get("languages", []),
+                        "project_complexity": project_patterns.get("complexity", 0),
+                        "architecture_patterns": project_patterns.get("patterns", [])
+                    })
+            except Exception as e:
+                logger.debug(f"Could not get project patterns for context: {e}")
+        
+        # Calculate context complexity score
+        complexity_factors = []
+        
+        # Task complexity
+        task_complexity = len(content.split()) * 0.01
+        complexity_factors.append(min(0.3, task_complexity))
+        
+        # Project complexity
+        if enhanced_context["project_context"]:
+            framework_count = len(enhanced_context["project_context"].get("detected_frameworks", []))
+            language_count = len(enhanced_context["project_context"].get("detected_languages", []))
+            project_complexity = (framework_count + language_count) * 0.05
+            complexity_factors.append(min(0.2, project_complexity))
+        
+        # Activity complexity
+        file_complexity = len(enhanced_context["files_accessed"]) * 0.02
+        command_complexity = len(enhanced_context["commands_executed"]) * 0.01
+        complexity_factors.extend([min(0.15, file_complexity), min(0.1, command_complexity)])
+        
+        enhanced_context["complexity_score"] = min(1.0, sum(complexity_factors))
+        
+        # Add contextual intelligence similar to memory system
+        enhanced_context.update({
+            "intelligence_level": "high" if enhanced_context["complexity_score"] > 0.7 else "medium" if enhanced_context["complexity_score"] > 0.4 else "low",
+            "auto_progression_recommended": enhanced_context["complexity_score"] > 0.6,
+            "proactive_memory_integration": True,
+            "multi_dimensional_analysis": True
+        })
+        
+        return enhanced_context
+    
+    async def _attempt_auto_progression(self, session_id: str) -> None:
+        """
+        Attempt automatic progression to next thinking stage.
+        
+        Similar to memory system's proactive operations.
+        """
+        try:
+            if session_id not in self.active_thinking_sessions:
+                return
+                
+            session_data = self.active_thinking_sessions[session_id]
+            if not session_data.get("auto_progression_enabled", False):
+                return
+            
+            # Auto-progress to next stage
+            progression_result = await self.structured_thinking_extension.auto_progress_thinking_stage(
+                session_id, 
+                auto_execute=True
+            )
+            
+            if progression_result.get("status") == "auto_progressed":
+                logger.info(f"AutoCode: Auto-progressed thinking session {session_id} to {progression_result.get('stage')} stage")
+                
+                # Update session tracking
+                session_data.update({
+                    "last_auto_progression": datetime.utcnow().isoformat(),
+                    "current_stage": progression_result.get("stage"),
+                    "auto_progression_count": session_data.get("auto_progression_count", 0) + 1
+                })
+                
+                # If we're at synthesis or conclusion, consider generating summary
+                if progression_result.get("stage") in ["synthesis", "conclusion"]:
+                    await self._attempt_auto_summary(session_id)
+                    
+        except Exception as e:
+            logger.error(f"Error in auto-progression: {e}")
+    
+    async def _attempt_auto_summary(self, session_id: str) -> None:
+        """
+        Attempt automatic summary generation for completed thinking sessions.
+        
+        Similar to memory system's automatic session summaries.
+        """
+        try:
+            if session_id not in self.active_thinking_sessions:
+                return
+                
+            session_data = self.active_thinking_sessions[session_id]
+            
+            # Generate comprehensive summary
+            summary_result = await self.structured_thinking_extension.generate_coding_action_plan(session_id)
+            
+            if summary_result and not summary_result.get("error"):
+                logger.info(f"AutoCode: Auto-generated action plan for thinking session {session_id}")
+                
+                # Update session as completed
+                session_data.update({
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "action_plan_generated": True,
+                    "plan_memory_id": summary_result.get("plan_memory_id"),
+                    "total_action_items": len(summary_result.get("action_items", []))
+                })
+                
+        except Exception as e:
+            logger.error(f"Error in auto-summary generation: {e}")
+    
+    async def get_enhanced_thinking_suggestions(self, context: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get enhanced thinking suggestions with full context integration.
+        
+        Similar to memory system's suggest_memory_queries with full intelligence.
+        """
+        try:
+            if not self.structured_thinking_extension:
+                return {"error": "Structured thinking extension not available"}
+            
+            # Build enhanced context
+            enhanced_context = await self._build_enhanced_context(
+                context.get("current_task", ""), 
+                context
+            )
+            
+            # Get proactive suggestions
+            suggestions = await self.structured_thinking_extension.suggest_proactive_thinking(
+                enhanced_context, 
+                limit=5
+            )
+            
+            # Add hook-specific enhancements
+            if suggestions.get("suggestions"):
+                for suggestion in suggestions["suggestions"]:
+                    # Add auto-execution capability
+                    suggestion["auto_executable"] = suggestion["confidence"] >= 0.8
+                    suggestion["hook_integration"] = True
+                    suggestion["memory_integration"] = enhanced_context.get("proactive_memory_integration", False)
+                    
+                    # Add time estimates based on complexity
+                    complexity = enhanced_context.get("complexity_score", 0.5)
+                    base_time = int(suggestion["estimated_time"].split("-")[0])
+                    adjusted_time = int(base_time * (1 + complexity * 0.5))
+                    suggestion["adjusted_time_estimate"] = f"{adjusted_time}-{adjusted_time + 5} minutes"
+            
+            # Add session management suggestions
+            active_sessions = len(self.active_thinking_sessions)
+            if active_sessions > 0:
+                suggestions["active_sessions"] = {
+                    "count": active_sessions,
+                    "sessions": [
+                        {
+                            "session_id": sid,
+                            "type": data.get("suggestion_type", "unknown"),
+                            "stage": data.get("current_stage", "unknown"),
+                            "auto_started": data.get("auto_started", False)
+                        }
+                        for sid, data in self.active_thinking_sessions.items()
+                    ]
+                }
+            
+            return suggestions
+            
+        except Exception as e:
+            logger.error(f"Error getting enhanced thinking suggestions: {e}")
+            return {"error": f"Failed to get suggestions: {e}"}
 
 
 class HookRegistry:
