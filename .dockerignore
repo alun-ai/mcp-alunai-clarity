@@ -1,0 +1,169 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Development and build artifacts
+.dockerignore
+Dockerfile
+docker-compose*.yml
+*.dockerfile
+
+# Documentation
+README.md
+CHANGELOG.md
+DEMO_SCRIPT.md
+LOCAL_DEVELOPMENT.md
+LOCAL_TESTING_SUMMARY.md
+FIXES_APPLIED.md
+docs/
+*.md
+
+# Development scripts and tools
+start-local-dev.sh
+stop-local-dev.sh
+test-*.sh
+scripts/
+dev-tools/
+
+# Testing
+tests/
+test_*
+*_test.py
+pytest.ini
+.pytest_cache/
+coverage.xml
+.coverage
+htmlcov/
+
+# Development environments
+.env
+.env.*
+.venv/
+venv/
+venv
+env/
+ENV/
+test_env/
+test_env
+*_env/
+*_venv/
+.python-version
+.pyenv
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+
+# Python development
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter notebooks (development)
+.ipynb_checkpoints/
+*.ipynb
+
+# Development data and logs
+logs/
+*.log
+log/
+tmp/
+temp/
+.tmp/
+
+# Local storage and cache (development)
+qdrant_data/
+.qdrant_coordination/
+cache/
+.cache/
+node_modules/
+.claude/
+*.egg-info/
+
+# Examples and demos (not needed in production)
+examples/
+demo/
+samples/
+
+# Performance and monitoring (development)
+.profiling/
+monitoring/
+metrics/
+
+# Local development configurations
+config.local.json
+settings.local.json
+.env.local
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# OS generated files
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Desktop.ini
+
+# Security and sensitive files (just in case)
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# CI/CD files (not needed in runtime)
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+Jenkinsfile
+
+# Package manager files (already copied separately)
+package-lock.json
+yarn.lock
+poetry.lock
+Pipfile.lock
+
+# Local development databases
+*.sqlite
+*.db
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+.temporary/
