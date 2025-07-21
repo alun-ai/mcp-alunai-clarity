@@ -37,13 +37,24 @@ class HookManager:
         # Initialize MCP awareness hooks
         self.mcp_awareness_hooks = MCPAwarenessHooks(domain_manager)
         
+        # Initialize structured thinking extension
+        self.structured_thinking_extension = None
+        if domain_manager and hasattr(domain_manager, 'persistence_domain'):
+            try:
+                from .structured_thinking_extension import StructuredThinkingExtension
+                self.structured_thinking_extension = StructuredThinkingExtension(domain_manager.persistence_domain)
+                logger.info("Structured thinking extension initialized")
+            except ImportError as e:
+                logger.warning(f"Could not initialize structured thinking extension: {e}")
+        
         # Default proactive memory configuration
         self.proactive_config = {
             "enabled": True,
             "triggers": {
                 "file_access": True,
                 "tool_execution": True,
-                "context_change": True
+                "context_change": True,
+                "structured_thinking": True  # New trigger for structured thinking
             },
             "similarity_threshold": 0.6,
             "max_memories_per_trigger": 3,
@@ -62,6 +73,9 @@ class HookManager:
             "failures": 0,
             "last_execution": None
         }
+        
+        # Structured thinking session tracking
+        self.active_thinking_sessions = {}
         
         # Auto-register default hooks
         self._register_default_hooks()
@@ -95,6 +109,11 @@ class HookManager:
             # Proactive memory consultation hooks
             self.register_tool_hook("suggest_memory_queries", self._on_memory_query_suggest)
             self.register_tool_hook("check_relevant_memories", self._on_relevant_memory_check)
+            
+            # Structured thinking hooks
+            self.register_tool_hook("process_structured_thought", self._on_structured_thought_process)
+            self.register_tool_hook("generate_thinking_summary", self._on_thinking_summary_generate)
+            self.register_tool_hook("continue_thinking_process", self._on_thinking_process_continue)
             
             # Lifecycle hooks
             self.register_lifecycle_hook("session_start", self._on_session_start)
@@ -309,15 +328,21 @@ class HookManager:
             logger.error(f"Error in memory retrieve hook: {e}")
     
     async def _on_command_suggest(self, context: Dict[str, Any]) -> None:
-        """Hook for command suggestion operations."""
+        """Hook for command suggestion operations with intelligent structured thinking trigger."""
         try:
             arguments = context.get("arguments", {})
             intent = arguments.get("intent", "")
             suggestions = context.get("result", {}).get("suggestions", [])
+            use_structured_thinking = arguments.get("use_structured_thinking", False)
             
             # Log command suggestion patterns
             if intent and suggestions:
                 logger.debug(f"AutoCode: Command suggestions for intent '{intent}': {len(suggestions)} suggestions")
+            
+            # Intelligent structured thinking trigger
+            if intent and self._should_trigger_structured_thinking(intent, context):
+                logger.info(f"AutoCode: Triggering structured thinking for complex intent: {intent[:50]}...")
+                await self._auto_trigger_structured_thinking(intent, context)
                 
         except Exception as e:
             logger.error(f"Error in command suggest hook: {e}")
@@ -372,7 +397,7 @@ class HookManager:
             logger.error(f"Error in session end hook: {e}")
     
     async def _on_conversation_message(self, context: Dict[str, Any]) -> None:
-        """Hook for conversation messages."""
+        """Hook for conversation messages with intelligent structured thinking detection."""
         try:
             message_data = context.get("data", {})
             role = message_data.get("role", "")
@@ -382,6 +407,15 @@ class HookManager:
             # Track conversation messages
             if self.autocode_hooks and content:
                 await self.autocode_hooks.on_conversation_message(role, content, message_id)
+            
+            # Intelligent structured thinking trigger for user messages
+            if role == "user" and content and self._should_trigger_structured_thinking(content, context):
+                logger.info(f"AutoCode: Detected complex user message triggering structured thinking")
+                await self._auto_trigger_structured_thinking(content, {
+                    "arguments": {"intent": content},
+                    "trigger": "conversation_message",
+                    "message_id": message_id
+                })
                 
         except Exception as e:
             logger.error(f"Error in conversation message hook: {e}")
@@ -812,19 +846,328 @@ class HookManager:
         }
         return tool_name in consultation_tools
     
+    def _should_trigger_structured_thinking(self, intent: str, context: Dict[str, Any]) -> bool:
+        """Intelligent detection of when to trigger structured thinking."""
+        if not intent:
+            return False
+        
+        # Complexity indicators
+        complexity_score = 0
+        intent_lower = intent.lower()
+        
+        # Length-based complexity (longer requests often need more thinking)
+        if len(intent) > 100:
+            complexity_score += 1
+        if len(intent) > 200:
+            complexity_score += 1
+            
+        # Keyword-based complexity detection
+        high_complexity_keywords = [
+            "implement", "design", "architecture", "solution", "approach", 
+            "strategy", "optimize", "refactor", "migrate", "integrate",
+            "system", "complex", "multiple", "several", "various",
+            "performance", "scalability", "security", "architecture",
+            "framework", "pattern", "best practice", "enterprise"
+        ]
+        
+        medium_complexity_keywords = [
+            "create", "build", "develop", "add", "improve", "enhance",
+            "fix", "debug", "troubleshoot", "configure", "setup",
+            "test", "validate", "analyze", "review", "compare"
+        ]
+        
+        question_indicators = [
+            "how should", "what approach", "best way", "which method",
+            "how to implement", "what pattern", "how do i", "what's the best"
+        ]
+        
+        # Count complexity indicators
+        for keyword in high_complexity_keywords:
+            if keyword in intent_lower:
+                complexity_score += 2
+                
+        for keyword in medium_complexity_keywords:
+            if keyword in intent_lower:
+                complexity_score += 1
+                
+        for indicator in question_indicators:
+            if indicator in intent_lower:
+                complexity_score += 1
+        
+        # Context-based complexity
+        arguments = context.get("arguments", {})
+        if arguments.get("use_structured_thinking", False):
+            complexity_score += 3  # Explicit request
+            
+        # Project context complexity
+        project_context = arguments.get("context", {})
+        if project_context:
+            if project_context.get("project_type") in ["enterprise", "complex", "multi-service"]:
+                complexity_score += 2
+            if len(project_context) > 5:  # Rich context suggests complexity
+                complexity_score += 1
+        
+        # Multiple sentence/question complexity
+        sentences = len([s for s in intent.split('.') if s.strip()])
+        questions = len([s for s in intent.split('?') if s.strip()])
+        if sentences > 2 or questions > 1:
+            complexity_score += 1
+            
+        # Decision threshold
+        return complexity_score >= 4
+    
+    async def _auto_trigger_structured_thinking(self, intent: str, context: Dict[str, Any]) -> None:
+        """Automatically trigger structured thinking process for complex problems."""
+        try:
+            # Create thinking session
+            from datetime import datetime, timezone
+            session_id = f"auto_thinking_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            
+            logger.info(f"AutoCode: Starting structured thinking session {session_id} for: {intent[:100]}...")
+            
+            # Stage 1: Problem Definition (automatic)
+            await self._process_auto_thinking_stage(
+                session_id=session_id,
+                stage="problem_definition", 
+                content=f"Auto-detected complex problem: {intent}",
+                thought_number=1,
+                total_expected=3,  # Start with 3 stages, expand if needed
+                tags=self._extract_tags_from_intent(intent),
+                context=context
+            )
+            
+            # Stage 2: Research (automatic memory lookup)
+            research_content = await self._auto_research_stage(intent, context)
+            await self._process_auto_thinking_stage(
+                session_id=session_id,
+                stage="research",
+                content=research_content,
+                thought_number=2,
+                total_expected=3,
+                tags=["research", "automatic", "memory_search"],
+                context=context
+            )
+            
+            # Stage 3: Analysis suggestion (guide user to continue)
+            analysis_prompt = await self._generate_analysis_prompt(intent, context)
+            await self._process_auto_thinking_stage(
+                session_id=session_id,
+                stage="analysis", 
+                content=analysis_prompt,
+                thought_number=3,
+                total_expected=5,  # Expand to full 5-stage process
+                tags=["analysis", "user_guided", "next_step"],
+                context=context
+            )
+            
+            # Store session summary for user awareness
+            await self._store_thinking_session_summary(session_id, intent, context)
+            
+        except Exception as e:
+            logger.error(f"Error in auto-trigger structured thinking: {e}")
+    
+    async def _process_auto_thinking_stage(
+        self, 
+        session_id: str, 
+        stage: str, 
+        content: str, 
+        thought_number: int,
+        total_expected: int,
+        tags: List[str],
+        context: Dict[str, Any]
+    ) -> None:
+        """Process a single structured thinking stage automatically."""
+        try:
+            # This would call the MCP process_structured_thought tool
+            if hasattr(self.domain_manager, 'mcp_server') and self.domain_manager.mcp_server:
+                # For now, store as structured thinking memory
+                thinking_memory = {
+                    "id": f"thinking_{session_id}_{thought_number}",
+                    "type": "structured_thinking",
+                    "content": content,
+                    "importance": 0.8,
+                    "metadata": {
+                        "session_id": session_id,
+                        "stage": stage,
+                        "thought_number": thought_number,
+                        "total_expected": total_expected,
+                        "tags": tags,
+                        "auto_generated": True,
+                        "trigger_context": context.get("arguments", {}).get("intent", "")[:100]
+                    }
+                }
+                
+                await self.domain_manager.store_memory(thinking_memory, "short_term")
+                logger.debug(f"AutoCode: Stored auto-thinking stage {stage} for session {session_id}")
+                
+        except Exception as e:
+            logger.error(f"Error processing auto-thinking stage {stage}: {e}")
+    
+    async def _auto_research_stage(self, intent: str, context: Dict[str, Any]) -> str:
+        """Automatically conduct research stage by searching memory."""
+        try:
+            if not self.domain_manager:
+                return "Research stage: Memory system not available for automatic research."
+            
+            # Search for relevant memories
+            research_memories = await self.domain_manager.retrieve_memories(
+                query=intent,
+                memory_types=["project_pattern", "session_summary", "solution_synthesis", "architectural_decision"],
+                limit=5,
+                min_similarity=0.6
+            )
+            
+            if research_memories:
+                memory_insights = []
+                for memory in research_memories[:3]:
+                    mem_type = memory.get("type", "memory")
+                    content_preview = memory.get("content", "")[:100] + "..." if len(memory.get("content", "")) > 100 else memory.get("content", "")
+                    memory_insights.append(f"- {mem_type}: {content_preview}")
+                
+                research_content = f"Automatic research found {len(research_memories)} relevant memories:\n" + "\n".join(memory_insights)
+                research_content += f"\n\nSuggested next step: Analyze how these patterns apply to current problem."
+            else:
+                research_content = f"Automatic research: No directly relevant memories found for '{intent[:50]}...'. This appears to be a novel problem requiring fresh analysis."
+                
+            return research_content
+            
+        except Exception as e:
+            logger.error(f"Error in auto-research stage: {e}")
+            return f"Research stage encountered error: {str(e)}"
+    
+    async def _generate_analysis_prompt(self, intent: str, context: Dict[str, Any]) -> str:
+        """Generate analysis stage prompt to guide user."""
+        components = self._identify_problem_components(intent)
+        
+        analysis_prompt = f"Analysis stage ready. Based on the problem '{intent[:100]}...', consider these components:\n\n"
+        
+        for i, component in enumerate(components, 1):
+            analysis_prompt += f"{i}. {component}\n"
+        
+        analysis_prompt += "\nNext steps: Break down each component, identify dependencies, and assess complexity."
+        analysis_prompt += "\nContinue with: process_structured_thought(stage='analysis', content='Your analysis...', ...)"
+        
+        return analysis_prompt
+    
+    def _identify_problem_components(self, intent: str) -> List[str]:
+        """Identify key components of the problem for analysis."""
+        components = []
+        intent_lower = intent.lower()
+        
+        # Technical components
+        if any(word in intent_lower for word in ["api", "endpoint", "service"]):
+            components.append("API/Service integration")
+        if any(word in intent_lower for word in ["database", "data", "storage"]):
+            components.append("Data persistence and management")
+        if any(word in intent_lower for word in ["ui", "interface", "frontend"]):
+            components.append("User interface design")
+        if any(word in intent_lower for word in ["performance", "scale", "optimization"]):
+            components.append("Performance and scalability")
+        if any(word in intent_lower for word in ["security", "auth", "authentication"]):
+            components.append("Security and authentication")
+        if any(word in intent_lower for word in ["test", "testing", "quality"]):
+            components.append("Testing and quality assurance")
+        
+        # Process components
+        if any(word in intent_lower for word in ["deploy", "deployment", "production"]):
+            components.append("Deployment and operations")
+        if any(word in intent_lower for word in ["monitor", "logging", "observability"]):
+            components.append("Monitoring and observability")
+        
+        # Default components for general problems
+        if not components:
+            components = [
+                "Core functionality requirements",
+                "Technical implementation approach", 
+                "Integration and dependencies",
+                "Error handling and edge cases"
+            ]
+        
+        return components
+    
+    def _extract_tags_from_intent(self, intent: str) -> List[str]:
+        """Extract relevant tags from user intent for structured thinking."""
+        tags = ["auto_triggered", "complex_problem"]
+        intent_lower = intent.lower()
+        
+        # Technology tags
+        tech_keywords = {
+            "python": "python", "javascript": "javascript", "typescript": "typescript",
+            "react": "react", "vue": "vue", "angular": "angular",
+            "api": "api", "rest": "rest", "graphql": "graphql",
+            "database": "database", "sql": "sql", "nosql": "nosql",
+            "docker": "docker", "kubernetes": "kubernetes",
+            "aws": "aws", "azure": "azure", "gcp": "gcp"
+        }
+        
+        for keyword, tag in tech_keywords.items():
+            if keyword in intent_lower:
+                tags.append(tag)
+        
+        # Problem type tags
+        problem_types = {
+            "performance": "performance", "security": "security",
+            "scalability": "scalability", "architecture": "architecture",
+            "refactor": "refactoring", "migrate": "migration",
+            "integrate": "integration", "optimize": "optimization"
+        }
+        
+        for keyword, tag in problem_types.items():
+            if keyword in intent_lower:
+                tags.append(tag)
+        
+        return list(set(tags))
+    
+    async def _store_thinking_session_summary(self, session_id: str, intent: str, context: Dict[str, Any]) -> None:
+        """Store a summary of the auto-triggered thinking session."""
+        try:
+            summary_content = f"Structured thinking session auto-triggered for: {intent}\n"
+            summary_content += f"Session ID: {session_id}\n"
+            summary_content += f"Status: Problem definition and research completed automatically\n"
+            summary_content += f"Next: Continue with analysis stage using process_structured_thought tool"
+            
+            session_memory = {
+                "id": f"session_summary_{session_id}",
+                "type": "thinking_session_summary",
+                "content": summary_content,
+                "importance": 0.9,
+                "metadata": {
+                    "session_id": session_id,
+                    "auto_triggered": True,
+                    "original_intent": intent,
+                    "stages_completed": 3,
+                    "status": "user_continuation_needed"
+                }
+            }
+            
+            await self.domain_manager.store_memory(session_memory, "short_term")
+            logger.info(f"AutoCode: Stored thinking session summary for {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error storing thinking session summary: {e}")
+    
     # MCP awareness hook implementations
     async def _on_mcp_user_request(self, context: Dict[str, Any]) -> None:
-        """Hook for MCP-aware user request processing."""
+        """Hook for MCP-aware user request processing with structured thinking integration."""
         try:
             request_data = context.get("data", {})
             user_request = request_data.get("request", "")
             request_context = request_data.get("context", {})
             
+            # MCP tool awareness
             if user_request and self.mcp_awareness_hooks:
                 suggestion = await self.mcp_awareness_hooks.on_user_request(user_request, request_context)
                 if suggestion:
                     logger.info(f"MCP tool suggestion: {suggestion[:100]}...")
                     # Could store the suggestion in memory or present it to the user
+            
+            # Intelligent structured thinking for complex user requests
+            if user_request and self._should_trigger_structured_thinking(user_request, context):
+                logger.info(f"AutoCode: Complex user request triggering structured thinking: {user_request[:50]}...")
+                await self._auto_trigger_structured_thinking(user_request, {
+                    "arguments": {"intent": user_request, "context": request_context},
+                    "trigger": "mcp_user_request"
+                })
                     
         except Exception as e:
             logger.error(f"Error in MCP user request hook: {e}")
@@ -872,6 +1215,165 @@ class HookManager:
                     
         except Exception as e:
             logger.error(f"Error in MCP error occurred hook: {e}")
+    
+    # Structured thinking hooks and detection methods
+    async def _on_structured_thought_process(self, context: Dict[str, Any]) -> None:
+        """Hook for structured thought processing."""
+        try:
+            arguments = context.get("arguments", {})
+            session_id = arguments.get("session_id")
+            content = arguments.get("content", "")
+            
+            if session_id and content:
+                # Track active thinking session
+                self.active_thinking_sessions[session_id] = {
+                    "last_activity": datetime.utcnow().isoformat(),
+                    "stage": arguments.get("stage", "unknown"),
+                    "thought_count": arguments.get("thought_number", 0)
+                }
+                
+                logger.debug(f"AutoCode: Processing structured thought for session {session_id}")
+                
+                # Auto-suggest next stage if structured thinking extension available
+                if self.structured_thinking_extension:
+                    next_stage_info = await self.structured_thinking_extension.suggest_next_thinking_stage(session_id)
+                    if next_stage_info.get("next_stage") != "complete":
+                        logger.info(f"AutoCode: Suggested next thinking stage: {next_stage_info.get('next_stage')}")
+                        
+        except Exception as e:
+            logger.error(f"Error in structured thought processing hook: {e}")
+    
+    async def _on_thinking_summary_generate(self, context: Dict[str, Any]) -> None:
+        """Hook for thinking summary generation."""
+        try:
+            arguments = context.get("arguments", {})
+            session_id = arguments.get("session_id")
+            
+            if session_id and session_id in self.active_thinking_sessions:
+                # Mark session as completing
+                self.active_thinking_sessions[session_id]["status"] = "summarizing"
+                logger.info(f"AutoCode: Generating thinking summary for session {session_id}")
+                
+                # Generate action plan if structured thinking extension available
+                if self.structured_thinking_extension:
+                    action_plan = await self.structured_thinking_extension.generate_coding_action_plan(session_id)
+                    if not action_plan.get("error"):
+                        logger.info(f"AutoCode: Generated action plan with {len(action_plan.get('action_items', []))} items")
+                        
+        except Exception as e:
+            logger.error(f"Error in thinking summary generation hook: {e}")
+    
+    async def _on_thinking_process_continue(self, context: Dict[str, Any]) -> None:
+        """Hook for continuing thinking processes."""
+        try:
+            arguments = context.get("arguments", {})
+            session_id = arguments.get("session_id")
+            
+            if session_id and self.structured_thinking_extension:
+                # Get continuation context and suggestions
+                next_stage_info = await self.structured_thinking_extension.suggest_next_thinking_stage(session_id)
+                if next_stage_info.get("next_stage") != "complete":
+                    logger.info(f"AutoCode: Continuing thinking process - next stage: {next_stage_info.get('next_stage')}")
+                    
+        except Exception as e:
+            logger.error(f"Error in thinking process continuation hook: {e}")
+    
+    def _should_trigger_structured_thinking(self, content: str, context: Dict[str, Any] = None) -> bool:
+        """
+        Detect if user input should trigger structured thinking process.
+        
+        Similar to mcp-sequential-thinking's automatic detection patterns.
+        """
+        if not self.proactive_config.get("triggers", {}).get("structured_thinking", True):
+            return False
+            
+        # Check content complexity indicators
+        complexity_indicators = [
+            "implement", "design", "architect", "plan", "analyze", "solve",
+            "build", "create", "develop", "optimize", "refactor", 
+            "debug", "troubleshoot", "investigate", "research",
+            "how should I", "what's the best way", "help me figure out",
+            "I need to understand", "break down", "step by step"
+        ]
+        
+        content_lower = content.lower()
+        has_complexity_indicator = any(indicator in content_lower for indicator in complexity_indicators)
+        
+        # Check for problem-solving language patterns
+        problem_patterns = [
+            "problem", "issue", "challenge", "difficulty", "stuck",
+            "not working", "error", "bug", "failing", "broken"
+        ]
+        has_problem_pattern = any(pattern in content_lower for pattern in problem_patterns)
+        
+        # Check content length (longer requests often need structured thinking)
+        is_substantial = len(content.split()) > 15
+        
+        # Check for multiple questions or requirements
+        has_multiple_parts = any(marker in content for marker in ["?", "and", "also", "additionally", "furthermore"])
+        
+        # Scoring system (like complexity detection in existing code)
+        score = 0
+        if has_complexity_indicator:
+            score += 2
+        if has_problem_pattern:
+            score += 1
+        if is_substantial:
+            score += 1
+        if has_multiple_parts:
+            score += 1
+            
+        # Additional context scoring
+        if context:
+            # If user is working on a project, more likely to need structured thinking
+            if context.get("data", {}).get("project_context"):
+                score += 1
+            # If there are multiple files involved
+            if context.get("data", {}).get("file_count", 0) > 3:
+                score += 1
+        
+        # Trigger if score meets threshold (similar to mcp-sequential-thinking approach)
+        return score >= 3
+    
+    async def _auto_trigger_structured_thinking(self, content: str, context: Dict[str, Any] = None) -> None:
+        """
+        Automatically trigger structured thinking process.
+        
+        This mimics the automatic flow initiation from mcp-sequential-thinking.
+        """
+        if not self.structured_thinking_extension:
+            logger.warning("AutoCode: Structured thinking extension not available")
+            return
+            
+        try:
+            # Extract project context for better analysis
+            project_context = {}
+            if context:
+                project_context = context.get("data", {}).get("project_context", {})
+            
+            # Auto-analyze the problem using structured thinking
+            analysis_result = await self.structured_thinking_extension.analyze_problem_with_stages(
+                problem=content,
+                project_context=project_context
+            )
+            
+            if analysis_result and not analysis_result.get("error"):
+                session_id = analysis_result.get("session_id")
+                logger.info(f"AutoCode: Auto-started structured thinking session {session_id}")
+                
+                # Track the auto-started session
+                self.active_thinking_sessions[session_id] = {
+                    "auto_started": True,
+                    "trigger_content": content[:100],
+                    "started_at": datetime.utcnow().isoformat(),
+                    "stage": "analysis",
+                    "thought_count": 3
+                }
+                
+                return analysis_result
+                
+        except Exception as e:
+            logger.error(f"Error auto-triggering structured thinking: {e}")
 
 
 class HookRegistry:
