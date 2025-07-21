@@ -67,7 +67,7 @@ class JSONMemoryImporter:
             logger.info(f"Loaded JSON memory file: {json_file_path}")
             return data
             
-        except Exception as e:
+        except (OSError, ValueError, PermissionError, UnicodeDecodeError) as e:
             logger.error(f"Failed to load JSON file {json_file_path}: {e}")
             raise
     
@@ -199,7 +199,7 @@ class JSONMemoryImporter:
                 self.import_stats["successful_imports"] += 1
                 logger.debug(f"Imported memory: {memory_id}")
                 
-            except Exception as e:
+            except (ValueError, KeyError, AttributeError, RuntimeError) as e:
                 self.import_stats["failed_imports"] += 1
                 error_msg = f"Failed to import memory {memory.get('id', 'unknown')}: {e}"
                 self.import_stats["errors"].append(error_msg)
@@ -269,7 +269,7 @@ class JSONMemoryImporter:
             
             return verification
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"Verification failed: {e}")
             return {"verification_passed": False, "error": str(e)}
 
@@ -346,7 +346,7 @@ async def import_json_memories(
         
         logger.info("JSON memory import completed successfully")
         
-    except Exception as e:
+    except (OSError, ValueError, KeyError, AttributeError, RuntimeError) as e:
         logger.error(f"JSON memory import failed: {e}")
         raise
 

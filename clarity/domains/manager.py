@@ -12,6 +12,7 @@ from clarity.domains.semantic import SemanticDomain
 from clarity.domains.temporal import TemporalDomain
 from clarity.domains.persistence import PersistenceDomain
 from clarity.autocode.domain import AutoCodeDomain
+from clarity.shared.monitoring import performance_monitor, get_metrics_collector
 
 
 class MemoryDomainManager:
@@ -31,6 +32,7 @@ class MemoryDomainManager:
             config: Configuration dictionary
         """
         self.config = config
+        self.metrics_collector = get_metrics_collector()
         
         # Initialize domains
         self.persistence_domain = PersistenceDomain(config)
@@ -55,6 +57,7 @@ class MemoryDomainManager:
         
         logger.info("Memory Domain Manager initialized")
     
+    @performance_monitor.measure("memory.store", tags={"component": "memory"})
     async def store_memory(
         self,
         memory_type: str,
@@ -117,6 +120,7 @@ class MemoryDomainManager:
         
         return memory_id
     
+    @performance_monitor.measure("memory.retrieve", tags={"component": "memory"})
     async def retrieve_memories(
         self,
         query: str,

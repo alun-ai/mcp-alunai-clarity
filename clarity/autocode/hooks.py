@@ -68,7 +68,7 @@ class AutoCodeHooks:
                 
             logger.debug(f"AutoCode: Tracked file access {file_path} ({operation})")
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             logger.error(f"AutoCode: Error tracking file access {file_path}: {e}")
     
     async def on_bash_execution(
@@ -114,7 +114,7 @@ class AutoCodeHooks:
                 
             logger.debug(f"AutoCode: Tracked bash execution {command} (exit: {exit_code})")
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, OSError, RuntimeError) as e:
             logger.error(f"AutoCode: Error tracking bash execution {command}: {e}")
     
     async def on_conversation_message(
@@ -139,7 +139,7 @@ class AutoCodeHooks:
                 "timestamp": datetime.utcnow().isoformat()
             })
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"AutoCode: Error tracking conversation message: {e}")
     
     async def on_conversation_end(self, conversation_id: str = None) -> None:
@@ -162,7 +162,7 @@ class AutoCodeHooks:
             # Reset session data for next conversation
             self._reset_session_data()
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode: Error generating session summary: {e}")
     
     async def on_project_detection(self, project_root: str) -> None:
@@ -178,7 +178,7 @@ class AutoCodeHooks:
             
             logger.info(f"AutoCode: Detected new project at {project_root}")
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             logger.error(f"AutoCode: Error processing project detection {project_root}: {e}")
     
     async def suggest_next_action(
@@ -220,7 +220,7 @@ class AutoCodeHooks:
             
             return None
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError, TypeError) as e:
             logger.error(f"AutoCode: Error suggesting next action: {e}")
             return None
     
@@ -247,7 +247,7 @@ class AutoCodeHooks:
             # Use the AutoCode domain's command suggestion
             return await self.domain_manager.autocode_domain.suggest_command(intent, context)
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode: Error suggesting command for '{intent}': {e}")
             return []
     
@@ -278,7 +278,7 @@ class AutoCodeHooks:
             # Fallback to basic calculation
             return 0.5
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode: Error getting success rate for '{command}': {e}")
             return 0.5
     
@@ -305,7 +305,7 @@ class AutoCodeHooks:
             
             return None
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, PermissionError) as e:
             logger.error(f"AutoCode: Error detecting project root for {file_path}: {e}")
             return None
     
@@ -326,7 +326,7 @@ class AutoCodeHooks:
             
             self.project_cache[project_root] = context
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             logger.error(f"AutoCode: Error caching project context {project_root}: {e}")
     
     async def _detect_framework_quick(self, project_path: Path) -> str:
@@ -362,7 +362,7 @@ class AutoCodeHooks:
             
             return "unknown"
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             logger.error(f"AutoCode: Error detecting framework for {project_path}: {e}")
             return "unknown"
     
@@ -390,7 +390,7 @@ class AutoCodeHooks:
             
             return "unknown"
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
             logger.error(f"AutoCode: Error detecting language for {project_path}: {e}")
             return "unknown"
     
@@ -408,7 +408,7 @@ class AutoCodeHooks:
                 not self._should_ignore_path(path)
             )
             
-        except Exception as e:
+        except (ValueError, AttributeError, OSError) as e:
             logger.error(f"AutoCode: Error checking if should analyze {file_path}: {e}")
             return False
     
@@ -422,7 +422,7 @@ class AutoCodeHooks:
             
             return any(pattern in path.parts for pattern in ignore_patterns)
             
-        except Exception as e:
+        except (ValueError, AttributeError, OSError) as e:
             logger.error(f"AutoCode: Error checking ignore path {path}: {e}")
             return True  # Err on side of caution
     
@@ -448,7 +448,7 @@ class AutoCodeHooks:
             
             return context
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError) as e:
             logger.error(f"AutoCode: Error getting command context: {e}")
             return {"platform": "unknown", "timestamp": datetime.utcnow().isoformat()}
     
@@ -463,7 +463,7 @@ class AutoCodeHooks:
             
             return any(command.startswith(setup_cmd) for setup_cmd in setup_commands)
             
-        except Exception as e:
+        except (ValueError, AttributeError, TypeError) as e:
             logger.error(f"AutoCode: Error checking setup command {command}: {e}")
             return False
     
@@ -483,7 +483,7 @@ class AutoCodeHooks:
             if not recent_scans:
                 await self.on_project_detection(project_root)
                 
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode: Error triggering project scan for {project_root}: {e}")
     
     def _reset_session_data(self) -> None:
@@ -496,7 +496,7 @@ class AutoCodeHooks:
                 "conversation_log": []
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, TypeError) as e:
             logger.error(f"AutoCode: Error resetting session data: {e}")
     
     async def _get_current_context(self) -> Dict[str, Any]:
@@ -519,6 +519,6 @@ class AutoCodeHooks:
             
             return context
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, IndexError) as e:
             logger.error(f"AutoCode: Error getting current context: {e}")
             return {"platform": os.name, "timestamp": datetime.utcnow().isoformat()}

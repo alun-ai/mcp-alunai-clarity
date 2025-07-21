@@ -19,10 +19,10 @@ ENV PYTHONPATH=/app
 
 # Qdrant data directory
 ENV QDRANT_DATA_PATH=/app/data/qdrant
-ENV MEMORY_CONFIG_PATH=/app/config/memory_config.json
+ENV MEMORY_CONFIG_PATH=/app/data/config.json
 
 # Create data directories
-RUN mkdir -p /app/data/qdrant /app/config /app/backups
+RUN mkdir -p /app/data/qdrant /app/data/backups
 
 # Create default configuration
 RUN echo '{\
@@ -44,7 +44,7 @@ RUN echo '{\
     "max_long_term_items": 10000,\
     "max_archival_items": 100000\
   }\
-}' > /app/config/memory_config.json
+}' > /app/data/default_config.json
 
 # Set permissions
 RUN chmod +x setup.sh 2>/dev/null || true

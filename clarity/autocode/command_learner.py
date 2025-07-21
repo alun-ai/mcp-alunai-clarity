@@ -133,7 +133,7 @@ class CommandLearner:
             
             logger.debug(f"CommandLearner: Tracked execution {command} (success: {success})")
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, OSError) as e:
             logger.error(f"CommandLearner: Error tracking execution {command}: {e}")
     
     async def suggest_command(
@@ -192,7 +192,7 @@ class CommandLearner:
             # Limit to top 5 suggestions
             return unique_suggestions[:5]
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error suggesting commands for '{intent}': {e}")
             return []
     
@@ -213,7 +213,7 @@ class CommandLearner:
                 
             logger.info(f"CommandLearner: Learned {len(retry_patterns)} retry patterns")
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error learning retry patterns: {e}")
     
     async def get_command_context(self, project_path: str = None) -> Dict[str, Any]:
@@ -244,7 +244,7 @@ class CommandLearner:
             
             return context
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError) as e:
             logger.error(f"CommandLearner: Error getting command context: {e}")
             return {"platform": self.platform, "timestamp": datetime.utcnow().isoformat()}
     
@@ -284,7 +284,7 @@ class CommandLearner:
             
             return successful / total if total > 0 else 0.5
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error calculating success rate for {command}: {e}")
             return 0.5
     
@@ -403,7 +403,7 @@ class CommandLearner:
             # Default to the base command name
             return base_cmd
             
-        except Exception as e:
+        except (ValueError, AttributeError, IndexError, KeyError) as e:
             logger.error(f"CommandLearner: Error extracting intent from '{command}': {e}")
             return "unknown"
     
@@ -412,7 +412,7 @@ class CommandLearner:
         try:
             parts = command.strip().split()
             return parts[0] if parts else ""
-        except Exception as e:
+        except (ValueError, AttributeError, IndexError) as e:
             logger.error(f"CommandLearner: Error extracting base command from '{command}': {e}")
             return ""
     
@@ -440,7 +440,7 @@ class CommandLearner:
             
             return intent_aliases.get(normalized, normalized)
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError) as e:
             logger.error(f"CommandLearner: Error normalizing intent '{intent}': {e}")
             return intent.lower()
     
@@ -488,7 +488,7 @@ class CommandLearner:
             
             return patterns
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error getting patterns for intent '{intent}': {e}")
             return []
     
@@ -539,7 +539,7 @@ class CommandLearner:
             
             return min(1.0, confidence)
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error calculating confidence: {e}")
             return 0.5
     
@@ -588,7 +588,7 @@ class CommandLearner:
             
             return "; ".join(reasons) if reasons else "Based on historical patterns"
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error generating reasoning: {e}")
             return "Based on historical patterns"
     
@@ -645,7 +645,7 @@ class CommandLearner:
             
             return suggestions
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error getting platform suggestions: {e}")
             return []
     
@@ -702,7 +702,7 @@ class CommandLearner:
             
             return suggestions
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error getting context suggestions: {e}")
             return []
     
@@ -725,7 +725,7 @@ class CommandLearner:
             
             return list(seen_commands.values())
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error deduplicating suggestions: {e}")
             return suggestions
     
@@ -750,7 +750,7 @@ class CommandLearner:
                 }
             )
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error updating success pattern for {base_command}: {e}")
     
     async def _record_failure_pattern(
@@ -779,7 +779,7 @@ class CommandLearner:
                 }
             )
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error recording failure pattern for {base_command}: {e}")
     
     async def _detect_retry_pattern(
@@ -832,11 +832,11 @@ class CommandLearner:
                             })
                             break
                             
-                except Exception as parse_error:
+                except (ValueError, TypeError, AttributeError) as parse_error:
                     logger.error(f"CommandLearner: Error parsing failure timestamp: {parse_error}")
                     continue
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error detecting retry pattern for {command}: {e}")
     
     def _calculate_command_similarity(self, cmd1: str, cmd2: str) -> float:
@@ -866,7 +866,7 @@ class CommandLearner:
             
             return min(1.0, jaccard)
             
-        except Exception as e:
+        except (ValueError, AttributeError, IndexError, TypeError) as e:
             logger.error(f"CommandLearner: Error calculating command similarity: {e}")
             return 0.0
     
@@ -893,7 +893,7 @@ class CommandLearner:
             
             logger.info(f"CommandLearner: Stored retry pattern: {pattern['failed_command']} -> {pattern['successful_command']}")
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error storing retry pattern: {e}")
     
     async def _get_recent_executions(self, hours: int = 24) -> List[Dict[str, Any]]:
@@ -927,7 +927,7 @@ class CommandLearner:
             
             return recent_executions
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, RuntimeError) as e:
             logger.error(f"CommandLearner: Error getting recent executions: {e}")
             return []
     
@@ -970,7 +970,7 @@ class CommandLearner:
             
             return retry_patterns
             
-        except Exception as e:
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.error(f"CommandLearner: Error detecting retry sequences: {e}")
             return []
     
@@ -1000,7 +1000,7 @@ class CommandLearner:
             
             return "unknown"
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, PermissionError) as e:
             logger.error(f"CommandLearner: Error detecting project type for {project_path}: {e}")
             return "unknown"
     
@@ -1040,6 +1040,6 @@ class CommandLearner:
             most_common_ext = max(extensions, key=extensions.get)
             return ext_to_lang.get(most_common_ext, "unknown")
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, PermissionError, KeyError) as e:
             logger.error(f"CommandLearner: Error detecting project language for {project_path}: {e}")
             return "unknown"

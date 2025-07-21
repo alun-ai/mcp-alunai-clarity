@@ -5,7 +5,11 @@ AutoCode domain for code project intelligence and command learning.
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 from loguru import logger
+from ..shared.async_utils import AsyncBatcher, async_timed, async_timer, parallel_map
+from ..shared.logging import get_logger, log_operation, logged_operation
+from ..shared.audit_trail import AuditEventType, AuditSeverity
 
 from ..domains.persistence import PersistenceDomain
 from .command_learner import CommandLearner
@@ -39,6 +43,9 @@ class AutoCodeDomain:
         self.pattern_cache = {}
         self.command_patterns = {}
         
+        # Initialize comprehensive logging
+        self.logger = get_logger(__name__)
+        
         # AutoCode specific configuration
         self.autocode_config = config.get("autocode", {
             "enabled": True,
@@ -54,12 +61,15 @@ class AutoCodeDomain:
         self.history_navigator = None
         self.hook_manager = None
         
+    @log_operation(
+        operation_name="autocode_domain_initialization",
+        actor="system",
+        audit_event_type=AuditEventType.SYSTEM_START
+    )
     async def initialize(self) -> None:
         """Initialize the AutoCode domain."""
-        logger.info("Initializing AutoCode Domain")
-        
         if not self.autocode_config.get("enabled", True):
-            logger.info("AutoCode Domain disabled in configuration")
+            self.logger.info("AutoCode Domain disabled in configuration")
             return
         
         # Pattern detector will be initialized in set_command_learner method
@@ -67,39 +77,45 @@ class AutoCodeDomain:
         # Initialize session analyzer
         if self.autocode_config.get("session_analysis", {}).get("enabled", True):
             self.session_analyzer = SessionAnalyzer(self.autocode_config)
-            logger.info("AutoCode Domain: Session analyzer initialized")
+            self.logger.info("Session analyzer initialized")
         
         # Initialize command learner
         # Note: We need to pass the domain manager, but we don't have it yet
         # This will be set by the domain manager after initialization
         
         await self._load_existing_patterns()
-        logger.info("AutoCode Domain initialized successfully")
+        
+        self.logger.info(
+            f"AutoCode Domain initialized successfully - "
+            f"session_analyzer: {self.session_analyzer is not None}, "
+            f"pattern_cache: {len(self.pattern_cache)}, "
+            f"command_patterns: {len(self.command_patterns)}"
+        )
     
     async def set_command_learner(self, domain_manager):
         """Set the command learner with domain manager reference."""
         try:
             self.command_learner = CommandLearner(domain_manager)
-            logger.info("AutoCode Domain: Command learner initialized")
+            self.logger.info("AutoCode Domain: Command learner initialized")
             
             # Initialize pattern detector (needs domain manager)
             if self.autocode_config.get("pattern_detection", {}).get("enabled", True):
                 self.pattern_detector = PatternDetector(domain_manager)
-                logger.info("AutoCode Domain: Pattern detector initialized")
+                self.logger.info("AutoCode Domain: Pattern detector initialized")
             
             # Initialize history navigator (needs domain manager)
             if self.autocode_config.get("history_navigation", {}).get("enabled", True):
                 self.history_navigator = HistoryNavigator(domain_manager, self.autocode_config)
-                logger.info("AutoCode Domain: History navigator initialized")
+                self.logger.info("AutoCode Domain: History navigator initialized")
             
             # Initialize hook manager with MCP awareness (needs domain manager)
             if self.autocode_config.get("mcp_awareness", {}).get("enabled", True):
                 self.hook_manager = HookManager(domain_manager, None)  # No autocode_hooks needed for MCP awareness
                 await self.hook_manager.initialize()
-                logger.info("AutoCode Domain: Hook manager with MCP awareness initialized")
+                self.logger.info("AutoCode Domain: Hook manager with MCP awareness initialized")
                 
-        except Exception as e:
-            logger.error(f"AutoCode Domain: Error initializing command learner and navigation: {e}")
+        except (AttributeError, ImportError, ValueError, RuntimeError) as e:
+            self.logger.error(f"AutoCode Domain: Error initializing command learner and navigation: {e}")
     
     async def process_file_access(
         self, 
@@ -128,7 +144,7 @@ class AutoCodeDomain:
                 
             logger.debug(f"Processed file access: {file_path} ({operation})")
             
-        except Exception as e:
+        except (OSError, ValueError, AttributeError, KeyError) as e:
             logger.error(f"Error processing file access {file_path}: {e}")
     
     async def process_bash_execution(
@@ -174,7 +190,7 @@ class AutoCodeDomain:
             
             logger.debug(f"Processed bash execution: {command} (exit_code: {exit_code})")
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error processing bash execution {command}: {e}")
     
     async def generate_session_summary(self, conversation_log: List[Dict]) -> str:
@@ -200,7 +216,7 @@ class AutoCodeDomain:
             
             return await self._store_session_summary(summary)
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error generating session summary: {e}")
             return ""
     
@@ -229,10 +245,23 @@ class AutoCodeDomain:
                 # Convert to expected format
                 return [{"command": cmd, "confidence": 0.5, "reasoning": "Basic suggestion"} 
                        for cmd in basic_suggestions]
-        except Exception as e:
-            logger.error(f"Error suggesting commands for intent '{intent}': {e}")
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
+            await self.logger.audit_error(
+                f"Error suggesting commands for intent '{intent}': {e}",
+                event_type=AuditEventType.ERROR_OCCURRED,
+                actor="system",
+                resource="command_suggestions",
+                action="suggest_command",
+                error=e,
+                context={'intent': intent, 'context_keys': list(context.keys()) if context else []}
+            )
             return []
     
+    @log_operation(
+        operation_name="get_project_patterns",
+        actor="system",
+        audit_event_type=AuditEventType.PROJECT_ANALYSIS
+    )
     async def get_project_patterns(self, project_path: str) -> Dict[str, Any]:
         """
         Get known patterns for a project.
@@ -244,49 +273,93 @@ class AutoCodeDomain:
             Dictionary of known patterns for the project
         """
         try:
-            # Validate project path exists
-            import os
-            from pathlib import Path
-            logger.info(f"get_project_patterns called for: {project_path}")
-            logger.info(f"os.path.exists({project_path}): {os.path.exists(project_path)}")
-            logger.info(f"Path({project_path}).exists(): {Path(project_path).exists()}")
-            
-            if not os.path.exists(project_path) or not Path(project_path).exists():
-                logger.error(f"Project path does not exist: {project_path}")
-                return {}
-            
-            # First try to get cached patterns
-            logger.info(f"Retrieving cached patterns for: {project_path}")
-            cached_patterns = await self._retrieve_project_patterns(project_path)
-            logger.info(f"Cached patterns result: {cached_patterns}")
-            
-            # Validate cached patterns - ensure they don't contain error data
-            if cached_patterns and isinstance(cached_patterns, dict):
-                # Check if this is an error response that got cached
-                if "error" in cached_patterns:
-                    logger.warning(f"Found corrupted cached patterns for {project_path}, clearing cache")
-                    cached_patterns = {}
-            
-            # If pattern detector is available and we don't have recent patterns, scan the project
-            if self.pattern_detector and not cached_patterns:
-                logger.info(f"Scanning project for patterns: {project_path}")
-                detected_patterns = await self.pattern_detector.scan_project(project_path)
+            async with self.logger.operation_context(
+                "retrieve_project_patterns",
+                actor="system",
+                resource=project_path,
+                audit_event_type=AuditEventType.PROJECT_ANALYSIS
+            ):
+                # Validate project path exists
+                import os
+                from pathlib import Path
                 
-                # Validate detected patterns before storing
-                if detected_patterns and isinstance(detected_patterns, dict) and "error" not in detected_patterns:
-                    # Store detected patterns for future use
-                    await self._store_detected_patterns(project_path, detected_patterns)
-                    return detected_patterns
-                elif detected_patterns and "error" in detected_patterns:
-                    logger.error(f"Pattern detection failed for {project_path}: {detected_patterns.get('error')}")
+                self.logger.debug("Validating project path", context={
+                    'project_path': project_path,
+                    'path_exists_os': os.path.exists(project_path),
+                    'path_exists_pathlib': Path(project_path).exists()
+                })
+                
+                if not os.path.exists(project_path) or not Path(project_path).exists():
+                    self.logger.error("Project path does not exist", context={
+                        'project_path': project_path
+                    })
                     return {}
-                else:
-                    logger.warning(f"Pattern detection returned invalid data for {project_path}")
-                    return {}
-            
-            return cached_patterns
-        except Exception as e:
-            logger.error(f"Error retrieving project patterns for {project_path}: {e}")
+                
+                # First try to get cached patterns
+                self.logger.debug("Attempting to retrieve cached patterns")
+                cached_patterns = await self._retrieve_project_patterns(project_path)
+                
+                # Validate cached patterns - ensure they don't contain error data
+                if cached_patterns and isinstance(cached_patterns, dict):
+                    # Check if this is an error response that got cached
+                    if "error" in cached_patterns:
+                        self.logger.warning("Found corrupted cached patterns, clearing cache", context={
+                            'project_path': project_path,
+                            'error': cached_patterns.get('error')
+                        })
+                        cached_patterns = {}
+                
+                # If pattern detector is available and we don't have recent patterns, scan the project
+                if self.pattern_detector and not cached_patterns:
+                    self.logger.info("Scanning project for new patterns")
+                    
+                    # Audit the pattern detection operation
+                    await self.logger.audit_info(
+                        "Starting pattern detection for project",
+                        event_type=AuditEventType.DATA_READ,
+                        actor="pattern_detector",
+                        resource=project_path,
+                        action="scan_project",
+                        context={'operation': 'pattern_detection'}
+                    )
+                    
+                    detected_patterns = await self.pattern_detector.scan_project(project_path)
+                    
+                    # Validate detected patterns before storing
+                    if detected_patterns and isinstance(detected_patterns, dict) and "error" not in detected_patterns:
+                        # Store detected patterns for future use
+                        await self._store_detected_patterns(project_path, detected_patterns)
+                        
+                        self.logger.info("Successfully detected and stored project patterns", context={
+                            'project_path': project_path,
+                            'pattern_count': len(detected_patterns),
+                            'pattern_types': list(detected_patterns.keys())
+                        })
+                        
+                        return detected_patterns
+                    elif detected_patterns and "error" in detected_patterns:
+                        self.logger.error("Pattern detection failed", context={
+                            'project_path': project_path,
+                            'error': detected_patterns.get('error')
+                        })
+                        return {}
+                    else:
+                        self.logger.warning("Pattern detection returned invalid data", context={
+                            'project_path': project_path
+                        })
+                        return {}
+                
+                return cached_patterns
+                
+        except (OSError, ValueError, AttributeError, KeyError, PermissionError) as e:
+            await self.logger.audit_error(
+                f"Error retrieving project patterns for {project_path}: {e}",
+                event_type=AuditEventType.ERROR_OCCURRED,
+                actor="system",
+                resource=project_path,
+                action="get_project_patterns",
+                error=e
+            )
             return {}
     
     async def find_similar_sessions(
@@ -317,7 +390,7 @@ class AutoCodeDomain:
                     limit=5,
                     min_similarity=0.6
                 )
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error finding similar sessions: {e}")
             return []
     
@@ -341,7 +414,7 @@ class AutoCodeDomain:
                 return await self.history_navigator.get_context_for_continuation(current_task, project_context)
             else:
                 return {"error": "History navigator not available"}
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error getting continuation context: {e}")
             return {"error": str(e)}
     
@@ -365,7 +438,7 @@ class AutoCodeDomain:
                 return await self.history_navigator.suggest_workflow_optimizations(current_workflow, session_context)
             else:
                 return []
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error suggesting workflow optimizations: {e}")
             return []
     
@@ -389,7 +462,7 @@ class AutoCodeDomain:
                 return await self.history_navigator.get_learning_progression(topic, time_range_days)
             else:
                 return {"topic": topic, "error": "History navigator not available"}
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error getting learning progression for {topic}: {e}")
             return {"topic": topic, "error": str(e)}
     
@@ -415,44 +488,68 @@ class AutoCodeDomain:
                 stats["context_cache_size"] = len(getattr(self.history_navigator, 'context_cache', {}))
             
             return stats
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"Error getting AutoCode stats: {e}")
             return {"error": str(e)}
     
     # Private implementation methods
+    @async_timed("pattern_loading")
     async def _load_existing_patterns(self) -> None:
-        """Load existing patterns from storage."""
-        try:
-            # Load project patterns
-            project_patterns = await self.persistence_domain.search_memories(
-                embedding=None,
-                limit=100,
-                types=["project_pattern"],
-                min_similarity=0.0
-            )
-            
-            for pattern in project_patterns:
-                pattern_id = pattern.get("id")
-                if pattern_id:
-                    self.pattern_cache[pattern_id] = pattern
-            
-            # Load command patterns
-            command_patterns = await self.persistence_domain.search_memories(
-                embedding=None,
-                limit=100,
-                types=["command_pattern"],
-                min_similarity=0.0
-            )
-            
-            for pattern in command_patterns:
-                command = pattern.get("content", {}).get("command")
-                if command:
-                    self.command_patterns[command] = pattern
-                    
-            logger.info(f"Loaded {len(self.pattern_cache)} project patterns and {len(self.command_patterns)} command patterns")
-            
-        except Exception as e:
-            logger.error(f"Error loading existing patterns: {e}")
+        """Load existing patterns from storage with async optimization."""
+        async with async_timer("pattern_loading"):
+            try:
+                # Load both pattern types concurrently
+                async def load_project_patterns():
+                    """Load project patterns from storage"""
+                    return await self.persistence_domain.search_memories(
+                        embedding=None,
+                        limit=100,
+                        types=["project_pattern"],
+                        min_similarity=0.0
+                    )
+                
+                async def load_command_patterns():
+                    """Load command patterns from storage"""
+                    return await self.persistence_domain.search_memories(
+                        embedding=None,
+                        limit=100,
+                        types=["command_pattern"],
+                        min_similarity=0.0
+                    )
+                
+                # Execute both pattern loading operations concurrently
+                project_patterns, command_patterns = await parallel_map(
+                    lambda x: x(),
+                    [load_project_patterns, load_command_patterns],
+                    max_concurrency=2
+                )
+                
+                # Process project patterns
+                project_count = 0
+                for pattern in project_patterns:
+                    try:
+                        pattern_id = pattern.get("id")
+                        if pattern_id:
+                            self.pattern_cache[pattern_id] = pattern
+                            project_count += 1
+                    except (AttributeError, KeyError, TypeError) as e:
+                        logger.warning(f"Skipping invalid project pattern: {e}")
+                
+                # Process command patterns
+                command_count = 0
+                for pattern in command_patterns:
+                    try:
+                        command = pattern.get("content", {}).get("command")
+                        if command:
+                            self.command_patterns[command] = pattern
+                            command_count += 1
+                    except (AttributeError, KeyError, TypeError) as e:
+                        self.logger.warning(f"Skipping invalid command pattern: {e}")
+                        
+                self.logger.info(f"Loaded {project_count} project patterns and {command_count} command patterns")
+                
+            except (ValueError, AttributeError, KeyError, RuntimeError) as e:
+                self.logger.error(f"Error loading existing patterns: {e}")
     
     async def _extract_file_patterns(
         self, 
@@ -506,7 +603,7 @@ class AutoCodeDomain:
                             "confidence": 0.8
                         })
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"Error extracting patterns from {file_path}: {e}")
         
         return patterns
@@ -538,7 +635,7 @@ class AutoCodeDomain:
             # Cache locally
             self.pattern_cache[memory_id] = memory
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing pattern: {e}")
     
     async def _store_bash_execution(self, execution_data: Dict) -> None:
@@ -560,7 +657,7 @@ class AutoCodeDomain:
             # Store in persistence layer
             await self.persistence_domain.store_memory(memory, "short_term")
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing bash execution: {e}")
     
     async def _update_command_patterns(
@@ -613,7 +710,7 @@ class AutoCodeDomain:
                 await self.persistence_domain.store_memory(memory, "short_term")
                 self.command_patterns[base_command] = memory
                 
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError, TypeError) as e:
             logger.error(f"Error updating command patterns for {command}: {e}")
     
     async def _analyze_session(self, conversation_log: List[Dict]) -> Dict:
@@ -651,7 +748,7 @@ class AutoCodeDomain:
             
             return session_data
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, TypeError, IndexError) as e:
             logger.error(f"Error analyzing session: {e}")
             return {}
     
@@ -676,7 +773,7 @@ class AutoCodeDomain:
             
             return memory_id
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing session summary: {e}")
             return ""
     
@@ -718,7 +815,7 @@ class AutoCodeDomain:
             
             return suggestions[:5]  # Limit to top 5 suggestions
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, TypeError) as e:
             logger.error(f"Error getting command suggestions: {e}")
             return []
     
@@ -752,7 +849,7 @@ class AutoCodeDomain:
             
             return project_patterns
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError, TypeError) as e:
             logger.error(f"Error retrieving project patterns: {e}")
             return {}
     
@@ -788,5 +885,5 @@ class AutoCodeDomain:
             
             logger.info(f"Stored detected patterns for project: {project_path}")
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"Error storing detected patterns for {project_path}: {e}")

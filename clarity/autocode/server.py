@@ -50,7 +50,7 @@ class AutoCodeServerExtension:
                 "total_suggestions": len(suggestions)
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling suggest_command: {e}")
             return {"error": f"Failed to suggest commands: {str(e)}"}
     
@@ -88,7 +88,7 @@ class AutoCodeServerExtension:
                 "success": exit_code == 0
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling track_bash: {e}")
             return {"error": f"Failed to track bash execution: {str(e)}"}
     
@@ -143,7 +143,7 @@ class AutoCodeServerExtension:
                 "days_back": days_back
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling get_session_history: {e}")
             return {"error": f"Failed to get session history: {str(e)}"}
     
@@ -187,7 +187,7 @@ class AutoCodeServerExtension:
                 "total_patterns": len(patterns)
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, OSError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling get_project_patterns: {e}")
             return {"error": f"Failed to get project patterns: {str(e)}"}
     
@@ -223,7 +223,7 @@ class AutoCodeServerExtension:
                 "content_length": len(content) if content else 0
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, OSError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling track_file_access: {e}")
             return {"error": f"Failed to track file access: {str(e)}"}
     
@@ -254,7 +254,7 @@ class AutoCodeServerExtension:
                 "confidence": "high" if success_rate > 0.8 else "medium" if success_rate > 0.5 else "low"
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling get_command_success_rate: {e}")
             return {"error": f"Failed to get command success rate: {str(e)}"}
     
@@ -283,7 +283,7 @@ class AutoCodeServerExtension:
                 "message": "Retry patterns learned from recent command history"
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling learn_retry_patterns: {e}")
             return {"error": f"Failed to learn retry patterns: {str(e)}"}
     
@@ -320,7 +320,7 @@ class AutoCodeServerExtension:
                 "time_range_days": time_range_days
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling find_similar_sessions: {e}")
             return {"error": f"Failed to find similar sessions: {str(e)}"}
     
@@ -353,7 +353,7 @@ class AutoCodeServerExtension:
                 "continuation_context": context
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling get_continuation_context: {e}")
             return {"error": f"Failed to get continuation context: {str(e)}"}
     
@@ -387,7 +387,7 @@ class AutoCodeServerExtension:
                 "total_suggestions": len(optimizations)
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling suggest_workflow_optimizations: {e}")
             return {"error": f"Failed to suggest workflow optimizations: {str(e)}"}
     
@@ -420,7 +420,7 @@ class AutoCodeServerExtension:
                 "progression": progression
             }
             
-        except Exception as e:
+        except (ValueError, AttributeError, KeyError, RuntimeError) as e:
             logger.error(f"AutoCode server: Error handling get_learning_progression: {e}")
             return {"error": f"Failed to get learning progression: {str(e)}"}
     

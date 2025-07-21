@@ -77,7 +77,7 @@ def check_dependency_version(package_name: str, min_version: str, max_version: s
         return True, None
     except importlib.metadata.PackageNotFoundError:
         return False, f"{package_name} is not installed"
-    except Exception as e:
+    except (ValueError, AttributeError, TypeError) as e:
         return False, f"Error checking {package_name} version: {str(e)}"
 
 
@@ -111,7 +111,7 @@ def check_compatibility() -> CompatibilityReport:
             compatible, error = check_dependency_version(package, min_version, max_version)
             if not compatible:
                 issues.append(error)
-        except Exception as e:
+        except (ValueError, AttributeError, TypeError) as e:
             issues.append(f"Error checking {package}: {str(e)}")
     
     # Special check for NumPy to ensure it's not v2.x

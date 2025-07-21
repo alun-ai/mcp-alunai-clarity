@@ -72,14 +72,14 @@ class HookManager:
             # Initialize MCP awareness hooks
             await self.mcp_awareness_hooks.initialize()
             logger.info("Hook manager initialized successfully")
-        except Exception as e:
+        except (ImportError, OSError, ConfigurationError, AttributeError) as e:
             logger.error(f"Error initializing hook manager: {e}")
     
     async def get_enhanced_system_prompt(self) -> str:
         """Get enhanced system prompt with MCP tool awareness."""
         try:
             return await self.mcp_awareness_hooks.get_enhanced_system_prompt()
-        except Exception as e:
+        except (AttributeError, KeyError, ValueError, OSError) as e:
             logger.error(f"Error getting enhanced system prompt: {e}")
             return ""
     
@@ -118,7 +118,7 @@ class HookManager:
             
             logger.info("Default AutoCode hooks registered successfully")
             
-        except Exception as e:
+        except (AttributeError, ImportError, RuntimeError) as e:
             logger.error(f"Error registering default hooks: {e}")
     
     def register_tool_hook(self, tool_name: str, hook_func: Callable) -> None:
@@ -193,7 +193,7 @@ class HookManager:
         for hook_func in self.tool_hooks[tool_name]:
             try:
                 await self._execute_hook(hook_func, hook_context)
-            except Exception as e:
+            except (AttributeError, RuntimeError, ValueError, KeyError) as e:
                 logger.error(f"Error executing tool hook {hook_func.__name__} for {tool_name}: {e}")
     
     async def execute_lifecycle_hooks(
@@ -220,7 +220,7 @@ class HookManager:
         for hook_func in self.lifecycle_hooks[event]:
             try:
                 await self._execute_hook(hook_func, hook_context)
-            except Exception as e:
+            except (AttributeError, RuntimeError, ValueError, ImportError) as e:
                 logger.error(f"Error executing lifecycle hook {hook_func.__name__} for {event}: {e}")
     
     async def execute_event_hooks(
@@ -247,7 +247,7 @@ class HookManager:
         for hook_func in self.event_hooks[event]:
             try:
                 await self._execute_hook(hook_func, hook_context)
-            except Exception as e:
+            except (AttributeError, RuntimeError, ValueError, KeyError) as e:
                 logger.error(f"Error executing event hook {hook_func.__name__} for {event}: {e}")
     
     async def _execute_hook(self, hook_func: Callable, context: Dict[str, Any]) -> None:
@@ -264,7 +264,7 @@ class HookManager:
             
             self.hook_stats["successes"] += 1
             
-        except Exception as e:
+        except (AttributeError, RuntimeError, ValueError, TypeError, ImportError) as e:
             self.hook_stats["failures"] += 1
             logger.error(f"Hook execution failed: {hook_func.__name__}: {e}")
             raise
@@ -290,7 +290,7 @@ class HookManager:
                         operation="store"
                     )
                     
-        except Exception as e:
+        except (MemoryOperationError, AttributeError, KeyError, ValueError) as e:
             logger.error(f"Error in memory store hook: {e}")
     
     async def _on_memory_retrieve(self, context: Dict[str, Any]) -> None:

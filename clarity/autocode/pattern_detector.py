@@ -385,7 +385,7 @@ class PatternDetector:
                     "evidence": ["Test patterns detected"]
                 })
             
-        except Exception as e:
+        except (OSError, FileNotFoundError, PermissionError, UnicodeDecodeError) as e:
             logger.error(f"Error analyzing file content {file_path}: {e}")
         
         return patterns
@@ -448,7 +448,7 @@ class PatternDetector:
             logger.info(f"Project scan completed: {len(scan_results)} pattern categories detected")
             return scan_results
             
-        except Exception as e:
+        except (OSError, PermissionError, FileNotFoundError, ValueError) as e:
             logger.error(f"Error scanning project {project_root}: {e}")
             return {"error": str(e), "project_path": project_root}
     
@@ -492,7 +492,7 @@ class PatternDetector:
                 "confidence_threshold": 0.3
             }
             
-        except Exception as e:
+        except (OSError, FileNotFoundError, json.JSONDecodeError, ValueError) as e:
             logger.error(f"Error detecting framework for {project_root}: {e}")
             return {"primary": "unknown", "error": str(e)}
     
@@ -540,7 +540,7 @@ class PatternDetector:
                 "languages_detected": len(language_counts)
             }
             
-        except Exception as e:
+        except (OSError, FileNotFoundError, ValueError, KeyError) as e:
             logger.error(f"Error detecting language for {project_root}: {e}")
             return {"primary": "unknown", "error": str(e)}
     

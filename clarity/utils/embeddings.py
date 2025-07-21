@@ -54,7 +54,7 @@ class EmbeddingManager:
                     cache_folder=self.cache_dir
                 )
                 logger.info(f"Embedding model loaded: {self.model_name}")
-            except Exception as e:
+            except (OSError, ImportError, RuntimeError, ValueError, MemoryError) as e:
                 logger.error(f"Error loading embedding model: {str(e)}")
                 raise RuntimeError(f"Failed to load embedding model: {str(e)}")
         
@@ -78,7 +78,7 @@ class EmbeddingManager:
             
             # Convert to list of floats for JSON serialization
             return embedding.tolist()
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, MemoryError) as e:
             logger.error(f"Error generating embedding: {str(e)}")
             # Return zero vector as fallback
             return [0.0] * self.dimensions
@@ -101,7 +101,7 @@ class EmbeddingManager:
             
             # Convert to list of lists for JSON serialization
             return [embedding.tolist() for embedding in embeddings]
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, MemoryError) as e:
             logger.error(f"Error generating batch embeddings: {str(e)}")
             # Return zero vectors as fallback
             return [[0.0] * self.dimensions] * len(texts)

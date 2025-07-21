@@ -63,7 +63,11 @@ def main() -> None:
             config_path = os.path.join(config_dir, "config.json")
         else:
             # Use embedded default config for containerized deployment
-            config_path = "/app/default_config.json"
+            # Check if user provided config exists, otherwise use default
+            if os.path.exists("/app/data/config.json"):
+                config_path = "/app/data/config.json"
+            else:
+                config_path = "/app/data/default_config.json"
     
     config = load_config(config_path)
     

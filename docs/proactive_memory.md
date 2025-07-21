@@ -127,7 +127,7 @@ Present: All relevant context automatically provided
 
 ## 📋 **Available MCP Tools**
 
-The Proactive Memory System provides 2 new MCP tools for configuration and monitoring:
+The Proactive Memory System provides 2 new MCP tools for configuration and monitoring, plus manual memory management tools:
 
 ### 1. configure_proactive_memory
 Configure proactive memory behavior and triggers.
@@ -207,7 +207,46 @@ Get statistics about proactive memory usage and effectiveness.
 }
 ```
 
-### 3. Enhanced check_relevant_memories
+### 3. Manual Memory Management Tools
+
+#### store_memory
+Store new information in memory explicitly.
+
+**Parameters:**
+- `memory_type` (required): Type of memory (e.g., "coding_constraints", "project_pattern", "fact")
+- `content` (required): The information to store
+- `importance` (optional): Importance score 0.0-1.0 (default: 0.5)
+- `metadata` (optional): Additional metadata object
+- `context` (optional): Context information
+
+**Trigger Phrases:**
+- "Remember this:"
+- "Store this in memory"
+- "Save this information"
+
+**Example:**
+```
+User: Remember this: Use async/await for all database operations
+Assistant: [Automatically calls store_memory with memory_type="coding_rule"]
+```
+
+#### retrieve_memory
+Manually search and retrieve relevant memories.
+
+**Parameters:**
+- `query` (required): Search query for memories
+- `types` (optional): Filter by memory types array
+- `limit` (optional): Maximum memories to return (default: 5)
+- `min_similarity` (optional): Minimum similarity score (default: 0.6)
+- `include_metadata` (optional): Include metadata in results (default: false)
+
+**Example:**
+```
+User: What do we know about authentication patterns?
+Assistant: [Uses retrieve_memory with query="authentication patterns"]
+```
+
+### 4. Enhanced check_relevant_memories
 The existing `check_relevant_memories` tool is enhanced with automatic context analysis.
 
 **Parameters:**
@@ -410,6 +449,36 @@ The system works with all memory types but prioritizes:
 - Review and reflect on past work periodically
 
 ### **3. Effective Usage Patterns**
+
+#### **Manual Memory Storage**
+```
+✅ Use explicit phrases to trigger memory storage:
+   "Remember this: [important information]"
+   "Store this in memory: [coding pattern]"
+   "Save this information: [project decision]"
+
+✅ Structure important information for storage:
+   "Remember this coding constraint: Always validate input parameters"
+   "Store this pattern: Use dependency injection for testability"
+
+❌ Don't assume information will be automatically stored
+❌ Don't use vague phrases like "remember" without "this:"
+```
+
+#### **Manual Memory Retrieval**
+```
+✅ Ask specific questions to trigger retrieval:
+   "What patterns do we have for authentication?"
+   "What coding constraints should I follow?"
+   "What decisions were made about database design?"
+
+✅ Use retrieve_memory directly for complex searches:
+   User: "Search memories for React component patterns"
+   Assistant: [Uses retrieve_memory with query="React component patterns"]
+
+❌ Don't expect Claude to automatically know all past context
+❌ Don't assume memories are retrieved without asking
+```
 
 #### **Let the System Work**
 ```

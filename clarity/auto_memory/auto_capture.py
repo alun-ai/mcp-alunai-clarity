@@ -55,6 +55,11 @@ def should_store_memory(message: str, threshold: float = 0.6) -> bool:
     words = message.split()
     complexity = min(1.0, len(words) / 50.0)  # Normalize to 0.0-1.0
     
+    # Check for explicit "remember" requests first (highest priority)
+    remember_score = 0.0
+    if re.search(r"^(?:remember|please remember)(?:\s*:|\s+(?:that|this)?\s*)", message, re.IGNORECASE):
+        remember_score = 1.0
+    
     # Check for presence of preference indicators
     preference_score = 0.0
     for pattern in preference_patterns:
@@ -72,8 +77,11 @@ def should_store_memory(message: str, threshold: float = 0.6) -> bool:
     # Question sentences typically don't contain storable information
     question_ratio = len(re.findall(r"\?", message)) / max(1, len(re.findall(r"[.!?]", message)))
     
-    # Combined score
-    combined_score = max(preference_score, fact_score) * (1.0 - question_ratio) * complexity
+    # Combined score - remember requests bypass other scoring
+    if remember_score > 0:
+        combined_score = remember_score  # Always store explicit remember requests
+    else:
+        combined_score = max(preference_score, fact_score) * (1.0 - question_ratio) * complexity
     
     return combined_score >= threshold
 
@@ -112,6 +120,20 @@ def extract_memory_content(message: str) -> Tuple[str, Dict[str, Any], float]:
     memory_type = "conversation"
     content = {"role": "user", "message": message}
     importance = 0.5
+    
+    # Check for explicit "remember" requests first
+    remember_match = re.search(r"^(?:remember|please remember)(?:\s*:|\s+(?:that|this)?\s*)(.+?)(?:\.|$)", message, re.IGNORECASE)
+    if remember_match:
+        memory_content = remember_match.group(1).strip()
+        memory_type = "fact"
+        content = {
+            "fact": memory_content,
+            "confidence": 0.9,
+            "domain": "user_request",
+            "explicit_request": True
+        }
+        importance = 0.8
+        return memory_type, content, importance
     
     # Check for user preferences or traits (entity memory)
     for pattern in user_patterns:

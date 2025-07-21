@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Any, Dict
 
 from loguru import logger
+from clarity.shared.infrastructure import get_cache
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
     """
-    Load configuration from a JSON file.
+    Load configuration from a JSON file with caching.
     
     Args:
         config_path: Path to the configuration file
@@ -22,10 +23,31 @@ def load_config(config_path: str) -> Dict[str, Any]:
     """
     config_path = os.path.expanduser(config_path)
     
+    # Initialize config cache
+    config_cache = get_cache(
+        "config",
+        max_size=100,       # Cache up to 100 config files
+        max_memory_mb=10,   # 10MB for config data
+        default_ttl=600.0   # 10 minutes TTL
+    )
+    
+    # Create cache key from file path and modification time
+    cache_key = f"cfg_{config_path}"
+    if os.path.exists(config_path):
+        mtime = os.path.getmtime(config_path)
+        cache_key += f"_{int(mtime)}"
+    
+    # Try cache first
+    cached_config = config_cache.get(cache_key)
+    if cached_config is not None:
+        return cached_config
+    
     # Check if config file exists
     if not os.path.exists(config_path):
         logger.warning(f"Configuration file not found: {config_path}")
-        return create_default_config(config_path)
+        config = create_default_config(config_path)
+        config_cache.set(cache_key, config)
+        return config
     
     try:
         with open(config_path, "r") as f:
@@ -35,13 +57,22 @@ def load_config(config_path: str) -> Dict[str, Any]:
             # Validate and merge with defaults
             config = validate_config(config)
             
+            # Ensure all instances use shared storage (remove session isolation logic)
+            
+            # Cache the configuration
+            config_cache.set(cache_key, config)
+            
             return config
     except json.JSONDecodeError:
         logger.error(f"Error parsing configuration file: {config_path}")
-        return create_default_config(config_path)
-    except Exception as e:
+        config = create_default_config(config_path)
+        config_cache.set(cache_key, config)
+        return config
+    except (FileNotFoundError, json.JSONDecodeError, ConfigurationError, PermissionError, OSError) as e:
         logger.error(f"Error loading configuration: {str(e)}")
-        return create_default_config(config_path)
+        config = create_default_config(config_path)
+        config_cache.set(cache_key, config)
+        return config
 
 
 def create_default_config(config_path: str) -> Dict[str, Any]:
@@ -59,6 +90,10 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
     # Create config directory if it doesn't exist
     os.makedirs(os.path.dirname(config_path), exist_ok=True)
     
+    # Use shared storage by default for all Claude instances in same project
+    base_data_path = os.path.dirname(config_path)  # Use same directory as config
+    qdrant_path = os.path.join(base_data_path, "qdrant")
+    
     # Default configuration
     config = {
         "server": {
@@ -67,7 +102,7 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             "debug": False
         },
         "qdrant": {
-            "path": os.path.expanduser("~/.clarity/qdrant_data"),
+            "path": qdrant_path,
             "host": "localhost",
             "port": 6333,
             "prefer_grpc": False,
@@ -158,7 +193,7 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
     try:
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
-    except Exception as e:
+    except (OSError, PermissionError, json.JSONEncodeError) as e:
         logger.error(f"Error saving default configuration: {str(e)}")
     
     return config

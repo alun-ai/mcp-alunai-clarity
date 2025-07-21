@@ -1,0 +1,1 @@
+# Shared utilities and common patterns for Clarity

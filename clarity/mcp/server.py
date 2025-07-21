@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+from clarity.shared.utils import MCPResponseBuilder
 from mcp.server.fastmcp import FastMCP
 
 from clarity.mcp.tools import MemoryToolDefinitions
@@ -66,16 +67,10 @@ class MemoryMcpServer:
                     context=context or {}
                 )
                 
-                return json.dumps({
-                    "success": True,
-                    "memory_id": memory_id
-                })
+                return MCPResponseBuilder.memory_stored(memory_id)
             except Exception as e:
                 logger.error(f"Error in store_memory: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def retrieve_memory(
@@ -95,16 +90,10 @@ class MemoryMcpServer:
                     include_metadata=include_metadata
                 )
                 
-                return json.dumps({
-                    "success": True,
-                    "memories": memories
-                })
+                return MCPResponseBuilder.memories_retrieved(memories)
             except Exception as e:
                 logger.error(f"Error in retrieve_memory: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def list_memories(
@@ -124,16 +113,10 @@ class MemoryMcpServer:
                     include_content=include_content
                 )
                 
-                return json.dumps({
-                    "success": True,
-                    "memories": memories
-                })
+                return MCPResponseBuilder.memories_retrieved(memories)
             except Exception as e:
                 logger.error(f"Error in list_memories: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def update_memory(
@@ -147,15 +130,10 @@ class MemoryMcpServer:
                     updates=updates
                 )
                 
-                return json.dumps({
-                    "success": success
-                })
+                return MCPResponseBuilder.success({"success": success})
             except Exception as e:
                 logger.error(f"Error in update_memory: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def delete_memory(memory_ids: List[str]) -> str:
@@ -165,15 +143,10 @@ class MemoryMcpServer:
                     memory_ids=memory_ids
                 )
                 
-                return json.dumps({
-                    "success": success
-                })
+                return MCPResponseBuilder.success({"success": success})
             except Exception as e:
                 logger.error(f"Error in delete_memory: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def memory_stats() -> str:
@@ -181,16 +154,10 @@ class MemoryMcpServer:
             try:
                 stats = await self.domain_manager.get_memory_stats()
                 
-                return json.dumps({
-                    "success": True,
-                    "stats": stats
-                })
+                return MCPResponseBuilder.success({"stats": stats})
             except Exception as e:
                 logger.error(f"Error in memory_stats: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
         
         # Register AutoCode tools if enabled
         if self.config.get("autocode", {}).get("enabled", True):
@@ -208,18 +175,14 @@ class MemoryMcpServer:
             """Get intelligent command suggestions based on intent and context."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 suggestions = await self.domain_manager.autocode_domain.suggest_command(
                     intent=intent,
                     context=context or {}
                 )
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "intent": intent,
                     "suggestions": suggestions,
                     "context": context,
@@ -227,10 +190,7 @@ class MemoryMcpServer:
                 })
             except Exception as e:
                 logger.error(f"Error in suggest_command: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def get_project_patterns(
@@ -240,10 +200,7 @@ class MemoryMcpServer:
             """Get detected patterns for a project."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 patterns = await self.domain_manager.autocode_domain.get_project_patterns(project_path)
                 
@@ -255,8 +212,7 @@ class MemoryMcpServer:
                     }
                     patterns = filtered_patterns
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "project_path": project_path,
                     "patterns": patterns,
                     "pattern_types_requested": pattern_types,
@@ -264,10 +220,7 @@ class MemoryMcpServer:
                 })
             except Exception as e:
                 logger.error(f"Error in get_project_patterns: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def find_similar_sessions(
@@ -278,10 +231,7 @@ class MemoryMcpServer:
             """Find sessions similar to current context."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 sessions = await self.domain_manager.autocode_domain.find_similar_sessions(
                     query=query,
@@ -289,8 +239,7 @@ class MemoryMcpServer:
                     time_range_days=time_range_days
                 )
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "query": query,
                     "context": context,
                     "sessions": sessions,
@@ -299,10 +248,7 @@ class MemoryMcpServer:
                 })
             except Exception as e:
                 logger.error(f"Error in find_similar_sessions: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def get_continuation_context(
@@ -312,28 +258,21 @@ class MemoryMcpServer:
             """Get relevant context for continuing work on a task."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 context = await self.domain_manager.autocode_domain.get_context_for_continuation(
                     current_task=current_task,
                     project_context=project_context
                 )
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "current_task": current_task,
                     "project_context": project_context,
                     "continuation_context": context
                 })
             except Exception as e:
                 logger.error(f"Error in get_continuation_context: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def suggest_workflow_optimizations(
@@ -343,18 +282,14 @@ class MemoryMcpServer:
             """Suggest workflow optimizations based on historical data."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 optimizations = await self.domain_manager.autocode_domain.suggest_workflow_optimizations(
                     current_workflow=current_workflow,
                     session_context=session_context
                 )
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "current_workflow": current_workflow,
                     "session_context": session_context,
                     "optimizations": optimizations,
@@ -362,10 +297,7 @@ class MemoryMcpServer:
                 })
             except Exception as e:
                 logger.error(f"Error in suggest_workflow_optimizations: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def get_learning_progression(
@@ -375,51 +307,35 @@ class MemoryMcpServer:
             """Track learning progression on a specific topic."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 progression = await self.domain_manager.autocode_domain.get_learning_progression(
                     topic=topic,
                     time_range_days=time_range_days
                 )
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "topic": topic,
                     "time_range_days": time_range_days,
                     "progression": progression
                 })
             except Exception as e:
                 logger.error(f"Error in get_learning_progression: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def autocode_stats() -> str:
             """Get AutoCode domain statistics."""
             try:
                 if not hasattr(self.domain_manager, 'autocode_domain') or not self.domain_manager.autocode_domain:
-                    return json.dumps({
-                        "success": False,
-                        "error": "AutoCode domain not available"
-                    })
+                    return MCPResponseBuilder.error("AutoCode domain not available")
                 
                 stats = await self.domain_manager.autocode_domain.get_stats()
                 
-                return json.dumps({
-                    "success": True,
-                    "stats": stats
-                })
+                return MCPResponseBuilder.success({"stats": stats})
             except Exception as e:
                 logger.error(f"Error in autocode_stats: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def qdrant_performance_stats() -> str:
@@ -466,18 +382,14 @@ class MemoryMcpServer:
                     "estimated_search_time_ms": self._estimate_search_time(total_memories),
                 }
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "performance_stats": performance_stats,
                     "raw_qdrant_stats": stats
                 })
                 
             except Exception as e:
                 logger.error(f"Error in qdrant_performance_stats: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def optimize_qdrant_collection() -> str:
@@ -490,8 +402,7 @@ class MemoryMcpServer:
                     # Get updated stats after optimization
                     stats = await self.domain_manager.persistence_domain.get_memory_stats()
                     
-                    return json.dumps({
-                        "success": True,
+                    return MCPResponseBuilder.success({
                         "message": "Collection optimization triggered successfully",
                         "updated_stats": {
                             "total_memories": stats.get("total_memories", 0),
@@ -501,17 +412,11 @@ class MemoryMcpServer:
                         }
                     })
                 else:
-                    return json.dumps({
-                        "success": False,
-                        "error": "Failed to trigger collection optimization"
-                    })
+                    return MCPResponseBuilder.error("Failed to trigger collection optimization")
                     
             except Exception as e:
                 logger.error(f"Error in optimize_qdrant_collection: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         # Proactive Memory Consultation Tools
         @self.app.tool()
@@ -571,8 +476,7 @@ class MemoryMcpServer:
                 # Limit to requested number of suggestions
                 suggestions = suggestions[:limit]
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "current_context": current_context,
                     "task_description": task_description,
                     "suggestions": suggestions,
@@ -580,10 +484,7 @@ class MemoryMcpServer:
                 })
             except Exception as e:
                 logger.error(f"Error in suggest_memory_queries: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def check_relevant_memories(
@@ -641,20 +542,16 @@ class MemoryMcpServer:
                                 "memories": memories
                             }])
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "context": context,
                     "queries_generated": queries,
                     "relevant_memories": relevant_memories,
                     "total_memories": sum(len(rm["memories"]) for rm in relevant_memories),
                     "auto_executed": auto_execute
                 })
-            except Exception as e:
+            except (MemoryOperationError, ValidationError, AttributeError) as e:
                 logger.error(f"Error in check_relevant_memories: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def configure_proactive_memory(
@@ -716,18 +613,14 @@ class MemoryMcpServer:
                     if hasattr(autocode_domain, 'hook_manager') and autocode_domain.hook_manager:
                         autocode_domain.hook_manager.proactive_config = config["proactive_memory"]
                 
-                return json.dumps({
-                    "success": True,
+                return MCPResponseBuilder.success({
                     "message": "Proactive memory configuration updated successfully",
                     "config": config["proactive_memory"]
                 })
                 
-            except Exception as e:
+            except (ConfigurationError, ValidationError, AttributeError) as e:
                 logger.error(f"Error configuring proactive memory: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
         async def get_proactive_memory_stats() -> str:
@@ -757,17 +650,11 @@ class MemoryMcpServer:
                     "recent_activity": len([m for m in presented_memories if self._is_recent(m, hours=24)])
                 }
                 
-                return json.dumps({
-                    "success": True,
-                    "stats": stats
-                })
+                return MCPResponseBuilder.success({"stats": stats})
                 
-            except Exception as e:
+            except (MemoryOperationError, AttributeError, RuntimeError) as e:
                 logger.error(f"Error getting proactive memory stats: {str(e)}")
-                return json.dumps({
-                    "success": False,
-                    "error": str(e)
-                })
+                return MCPResponseBuilder.error(str(e))
         
         logger.info("AutoCode tools registered successfully")
     
@@ -837,7 +724,7 @@ class MemoryMcpServer:
                 await self.hook_manager.execute_tool_hooks(
                     tool_name, arguments, result, execution_time
                 )
-        except Exception as e:
+        except (AttributeError, RuntimeError, ImportError, KeyError) as e:
             logger.error(f"Error triggering hooks for {tool_name}: {e}")
     
     async def start(self) -> None:

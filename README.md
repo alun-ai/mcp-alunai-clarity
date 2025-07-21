@@ -89,7 +89,7 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
 **New users:** Get instant high-performance memory with Qdrant vector database plus automatic MCP server discovery.
 **Existing users:** [Migrate from JSON](#-migration-from-json-storage) for 10-100x performance boost and MCP awareness.
 
-#### **1. Docker Setup (Recommended)**
+#### **1. Docker Setup (Recommended) - Single Volume Mount**
 
 ```json
 {
@@ -106,6 +106,26 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
   }
 }
 ```
+
+**Storage Structure:**
+- `./.claude/alunai-clarity/config.json` → Configuration file
+- `./.claude/alunai-clarity/qdrant/` → **Shared** vector database storage
+- `./.claude/alunai-clarity/cache/` → Embedding model cache
+- `./.claude/alunai-clarity/backups/` → Backup files
+
+> **Note:** All directories will be created automatically when you first run the container.
+
+#### **Multiple Sessions (Concurrent Claude Instances)**
+
+**✅ Now Supported!** You can run multiple Claude instances in the same project **sharing the same memory database** without conflicts.
+
+All Claude instances will:
+- Share the same memories and context
+- Access the same vector database safely
+- Collaborate with shared knowledge
+- No setup required - works automatically
+
+Simply run Claude in multiple terminals - they'll all share memories seamlessly.
 
 #### **2. Enable Proactive Features with `CLAUDE.md`**
 ```markdown
@@ -154,7 +174,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "-i",
         "--rm",
         "-v",
-        "./.claude/alunai-clarity:/data",
+        "./.claude/alunai-clarity:/app/data",
         "-e",
         "MEMORY_FILE_PATH",
         "-e",
