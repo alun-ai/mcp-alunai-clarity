@@ -7,6 +7,7 @@ seamless integration with MCP operations and Claude workflows.
 
 import inspect
 import asyncio
+import time
 from typing import Any, Dict, List, Optional, Callable, Union
 from datetime import datetime
 from loguru import logger
@@ -35,6 +36,19 @@ class HookManager:
         
         # Initialize MCP awareness hooks
         self.mcp_awareness_hooks = MCPAwarenessHooks(domain_manager)
+        
+        # Default proactive memory configuration
+        self.proactive_config = {
+            "enabled": True,
+            "triggers": {
+                "file_access": True,
+                "tool_execution": True,
+                "context_change": True
+            },
+            "similarity_threshold": 0.6,
+            "max_memories_per_trigger": 3,
+            "auto_present": True
+        }
         
         # Hook registries
         self.tool_hooks = {}  # Tool execution hooks
@@ -385,7 +399,9 @@ class HookManager:
                 await self.autocode_hooks.on_file_read(file_path, content, operation)
             
             # Proactive memory consultation for file access
-            if file_path and operation == "read":
+            if (file_path and operation == "read" and 
+                self.proactive_config.get("enabled", True) and 
+                self.proactive_config.get("triggers", {}).get("file_access", True)):
                 await self._suggest_file_related_memories(file_path)
                 
         except Exception as e:
@@ -478,8 +494,18 @@ class HookManager:
             arguments = tool_data.get("arguments", {})
             
             # Suggest relevant memories before tool execution
-            if tool_name and self._should_consult_memory_for_tool(tool_name):
+            if (tool_name and self._should_consult_memory_for_tool(tool_name) and
+                self.proactive_config.get("enabled", True) and 
+                self.proactive_config.get("triggers", {}).get("tool_execution", True)):
                 await self._suggest_contextual_memories(tool_name, arguments)
+                
+                # For certain tools, also auto-trigger comprehensive memory check
+                if tool_name in ["Edit", "Write", "Bash", "Read"]:
+                    await self._auto_trigger_memory_check({
+                        "tool_name": tool_name,
+                        "arguments": arguments,
+                        "trigger": "pre_tool_execution"
+                    })
                 
         except Exception as e:
             logger.error(f"Error in tool pre-execution hook: {e}")
@@ -521,7 +547,15 @@ class HookManager:
             
             if memories:
                 logger.info(f"AutoCode: Found {len(memories)} file-related memories for {file_path}")
-                # Could trigger a proactive memory presentation here
+                # Automatically present relevant memories to Claude
+                await self._present_memories_to_claude(memories, f"file access: {file_path}")
+                
+                # Also trigger check_relevant_memories for comprehensive context
+                await self._auto_trigger_memory_check({
+                    "file_path": file_path,
+                    "trigger": "file_access",
+                    "auto_context": True
+                })
                 
         except Exception as e:
             logger.error(f"Error suggesting file-related memories: {e}")
@@ -546,9 +580,158 @@ class HookManager:
             
             if memories:
                 logger.info(f"AutoCode: Found {len(memories)} contextual memories for {tool_name}")
+                # Automatically present contextual memories to Claude
+                await self._present_memories_to_claude(memories, f"tool context: {tool_name}")
+                
+                # Store context for learning
+                await self._track_memory_usage(tool_name, arguments, memories)
                 
         except Exception as e:
             logger.error(f"Error suggesting contextual memories: {e}")
+    
+    async def _present_memories_to_claude(self, memories: List[Dict[str, Any]], context: str) -> None:
+        """
+        Present relevant memories to Claude through the MCP system.
+        
+        This creates a natural integration where Claude receives memory context
+        automatically during workflow, making past knowledge immediately available.
+        """
+        try:
+            if not memories:
+                return
+            
+            # Check if proactive memory presentation is enabled
+            if not self.proactive_config.get("auto_present", True):
+                logger.debug(f"Proactive memory presentation disabled - skipping {len(memories)} memories")
+                return
+            
+            # Limit memories based on configuration
+            max_memories = self.proactive_config.get("max_memories_per_trigger", 3)
+            limited_memories = memories[:max_memories]
+            
+            # Format memories for presentation
+            memory_summary = self._format_memories_for_presentation(limited_memories, context)
+            
+            # Store as a special "proactive_memory" type for immediate reference
+            proactive_memory = {
+                "id": f"proactive_{int(time.time())}",
+                "type": "proactive_memory", 
+                "content": memory_summary,
+                "importance": 0.9,  # High importance for proactive suggestions
+                "metadata": {
+                    "trigger_context": context,
+                    "memory_count": len(memories),
+                    "auto_presented": True,
+                    "presentation_time": datetime.utcnow().isoformat()
+                }
+            }
+            
+            # Store in short-term memory for immediate Claude access
+            await self.domain_manager.store_memory(proactive_memory, "short_term")
+            
+            # Log for visibility 
+            logger.info(f"AutoCode: Automatically presented {len(memories)} memories to Claude for {context}")
+            
+        except Exception as e:
+            logger.error(f"Error presenting memories to Claude: {e}")
+    
+    def _format_memories_for_presentation(self, memories: List[Dict[str, Any]], context: str) -> str:
+        """Format memories in a natural way for Claude to understand and use."""
+        formatted_lines = [f"🧠 **Relevant Past Context** (triggered by {context}):\n"]
+        
+        for i, memory in enumerate(memories[:3], 1):  # Limit to top 3 for readability
+            content = memory.get("content", "")
+            memory_type = memory.get("type", "memory")
+            created_at = memory.get("created_at", "")
+            
+            # Truncate long content for summary
+            if len(content) > 200:
+                content = content[:200] + "..."
+            
+            formatted_lines.append(f"{i}. **{memory_type.replace('_', ' ').title()}** {created_at[:10] if created_at else ''}")
+            formatted_lines.append(f"   {content}")
+            formatted_lines.append("")
+        
+        formatted_lines.append("*This context was automatically retrieved based on your current activity.*")
+        
+        return "\n".join(formatted_lines)
+    
+    async def _auto_trigger_memory_check(self, context: Dict[str, Any]) -> None:
+        """
+        Automatically trigger the check_relevant_memories MCP tool.
+        
+        This provides a seamless way to invoke comprehensive memory checking
+        without Claude having to explicitly call the tool.
+        """
+        try:
+            # Use the MCP server's check_relevant_memories functionality
+            if hasattr(self.domain_manager, 'mcp_server') and self.domain_manager.mcp_server:
+                # This would ideally call the check_relevant_memories tool directly
+                # For now, we'll use the domain manager's retrieve_memories method
+                query = self._generate_contextual_query_from_context(context)
+                if query:
+                    memories = await self.domain_manager.retrieve_memories(
+                        query=query,
+                        limit=5,
+                        min_similarity=0.6
+                    )
+                    
+                    if memories:
+                        logger.info(f"AutoCode: Auto-triggered memory check found {len(memories)} additional memories")
+                        await self._present_memories_to_claude(memories, f"auto-check: {context.get('trigger', 'unknown')}")
+            
+        except Exception as e:
+            logger.error(f"Error in auto-trigger memory check: {e}")
+    
+    def _generate_contextual_query_from_context(self, context: Dict[str, Any]) -> str:
+        """Generate a search query from the provided context."""
+        query_parts = []
+        
+        if "file_path" in context:
+            from pathlib import Path
+            path = Path(context["file_path"])
+            query_parts.extend([path.name, path.suffix.replace(".", "")])
+        
+        if "command" in context:
+            command = context["command"].split()[0]  # Base command
+            query_parts.append(command)
+        
+        if "task" in context:
+            query_parts.append(context["task"])
+        
+        if "project_path" in context:
+            from pathlib import Path
+            project_name = Path(context["project_path"]).name
+            query_parts.append(project_name)
+        
+        return " ".join(query_parts) if query_parts else ""
+    
+    async def _track_memory_usage(self, tool_name: str, arguments: Dict[str, Any], memories: List[Dict[str, Any]]) -> None:
+        """Track which memories were presented for learning and optimization."""
+        try:
+            # Store usage analytics for future improvement
+            usage_data = {
+                "id": f"usage_{int(time.time())}",
+                "type": "memory_usage_analytics",
+                "content": {
+                    "tool_name": tool_name,
+                    "context_arguments": arguments,
+                    "memories_presented": [m.get("id") for m in memories],
+                    "memory_count": len(memories),
+                    "presentation_timestamp": datetime.utcnow().isoformat()
+                },
+                "importance": 0.3,  # Lower importance for analytics
+                "metadata": {
+                    "analytics_type": "proactive_memory_usage",
+                    "auto_generated": True
+                }
+            }
+            
+            # Store for learning pattern analysis
+            await self.domain_manager.store_memory(usage_data, "long_term")
+            
+        except Exception as e:
+            logger.error(f"Error tracking memory usage: {e}")
     
     async def _suggest_context_memories(self, change_type: str, context: Dict[str, Any]) -> None:
         """Suggest memories for context changes."""

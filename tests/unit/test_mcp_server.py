@@ -69,7 +69,10 @@ class TestMCPServer:
                 "get_continuation_context",
                 "suggest_workflow_optimizations",
                 "get_learning_progression",
-                "autocode_stats"
+                "autocode_stats",
+                "configure_proactive_memory",
+                "get_proactive_memory_stats",
+                "check_relevant_memories"
             ]
             
             # This would depend on the actual MCP server implementation

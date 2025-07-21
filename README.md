@@ -60,9 +60,9 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
 - **Automatic File & Command Tracking**: Zero-friction learning from Claude's interactions
 
 ### **🎯 Advanced Capabilities**
-- **17+ MCP Tools**: Comprehensive toolset including new performance monitoring and MCP awareness
+- **22 MCP Tools**: Comprehensive toolset including proactive memory, performance monitoring, and MCP awareness
 - **4 Specialized Memory Types**: project_pattern, command_pattern, session_summary, bash_execution
-- **Proactive Memory Tools**: `suggest_memory_queries`, `check_relevant_memories`
+- **Proactive Memory Tools**: `suggest_memory_queries`, `check_relevant_memories`, `configure_proactive_memory`, `get_proactive_memory_stats`
 - **Performance Tools**: `qdrant_performance_stats`, `optimize_qdrant_collection`
 - **MCP Awareness Tools**: Real-time MCP server discovery and proactive tool suggestions
 - **Automatic Hook System**: Seamless integration with Claude's normal operations
@@ -296,6 +296,8 @@ Once enabled, you'll immediately notice:
 #### **🧠 Proactive Memory Consultation (New)**
 7. **suggest_memory_queries** - Get recommended memory searches based on current context
 8. **check_relevant_memories** - Automatically retrieve contextually relevant memories
+9. **configure_proactive_memory** - Configure automatic memory presentation behavior
+10. **get_proactive_memory_stats** - Monitor proactive memory usage and effectiveness
 
 #### **⚡ Performance & Optimization (New)**
 9. **qdrant_performance_stats** - Detailed performance metrics and recommendations

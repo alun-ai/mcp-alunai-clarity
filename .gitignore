@@ -1,6 +1,6 @@
 .envrc
 .mcp.json
-mcp_alunai_memory.egg-info
+mcp_alunai_clarity.egg-info
 __pycache__/
 *.pyc
 *.pyo
@@ -8,3 +8,5 @@ __pycache__/
 .DS_Store
 .claude/
 mcp-alunai-clarity.*
+venv/
+.pytest_cache

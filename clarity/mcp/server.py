@@ -654,9 +654,156 @@ class MemoryMcpServer:
                     "success": False,
                     "error": str(e)
                 })
+
+        @self.app.tool()
+        async def configure_proactive_memory(
+            enabled: bool = True,
+            file_access_triggers: bool = True,
+            tool_execution_triggers: bool = True,
+            context_change_triggers: bool = True,
+            min_similarity_threshold: float = 0.6,
+            max_memories_per_trigger: int = 3,
+            auto_present_memories: bool = True
+        ) -> str:
+            """
+            Configure proactive memory checking behavior.
+            
+            This allows customization of when and how Claude automatically
+            receives relevant memory context during workflow.
+            """
+            try:
+                config = {
+                    "proactive_memory": {
+                        "enabled": enabled,
+                        "triggers": {
+                            "file_access": file_access_triggers,
+                            "tool_execution": tool_execution_triggers,
+                            "context_change": context_change_triggers
+                        },
+                        "similarity_threshold": min_similarity_threshold,
+                        "max_memories_per_trigger": max_memories_per_trigger,
+                        "auto_present": auto_present_memories,
+                        "last_updated": datetime.utcnow().isoformat()
+                    }
+                }
+                
+                # Store configuration in memory system
+                config_memory = {
+                    "id": "proactive_memory_config",
+                    "type": "system_configuration",
+                    "content": config,
+                    "importance": 1.0,
+                    "metadata": {
+                        "config_type": "proactive_memory",
+                        "auto_generated": False
+                    }
+                }
+                
+                await self.domain_manager.store_memory(config_memory, "long_term")
+                
+                # Update hook manager if available
+                if hasattr(self.domain_manager, 'autocode_domain') and self.domain_manager.autocode_domain:
+                    autocode_domain = self.domain_manager.autocode_domain
+                    if hasattr(autocode_domain, 'hook_manager') and autocode_domain.hook_manager:
+                        autocode_domain.hook_manager.proactive_config = config["proactive_memory"]
+                
+                return json.dumps({
+                    "success": True,
+                    "message": "Proactive memory configuration updated successfully",
+                    "config": config["proactive_memory"]
+                })
+                
+            except Exception as e:
+                logger.error(f"Error configuring proactive memory: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
+
+        @self.app.tool()
+        async def get_proactive_memory_stats() -> str:
+            """Get statistics about proactive memory usage and effectiveness."""
+            try:
+                # Retrieve proactive memory analytics
+                analytics_memories = await self.domain_manager.retrieve_memories(
+                    query="memory_usage_analytics proactive",
+                    memory_types=["memory_usage_analytics"],
+                    limit=100,
+                    min_similarity=0.3
+                )
+                
+                # Retrieve presented memories
+                presented_memories = await self.domain_manager.retrieve_memories(
+                    query="proactive_memory auto_presented",
+                    memory_types=["proactive_memory"],
+                    limit=50,
+                    min_similarity=0.3
+                )
+                
+                stats = {
+                    "total_proactive_presentations": len(presented_memories),
+                    "analytics_entries": len(analytics_memories),
+                    "most_common_triggers": self._analyze_trigger_patterns(presented_memories),
+                    "memory_effectiveness": self._calculate_memory_effectiveness(analytics_memories),
+                    "recent_activity": len([m for m in presented_memories if self._is_recent(m, hours=24)])
+                }
+                
+                return json.dumps({
+                    "success": True,
+                    "stats": stats
+                })
+                
+            except Exception as e:
+                logger.error(f"Error getting proactive memory stats: {str(e)}")
+                return json.dumps({
+                    "success": False,
+                    "error": str(e)
+                })
         
         logger.info("AutoCode tools registered successfully")
     
+    def _analyze_trigger_patterns(self, presented_memories: List[Dict[str, Any]]) -> Dict[str, int]:
+        """Analyze which triggers are most commonly used for proactive memory presentation."""
+        trigger_counts = {}
+        for memory in presented_memories:
+            metadata = memory.get("metadata", {})
+            trigger = metadata.get("trigger_context", "unknown")
+            trigger_counts[trigger] = trigger_counts.get(trigger, 0) + 1
+        return dict(sorted(trigger_counts.items(), key=lambda x: x[1], reverse=True))
+    
+    def _calculate_memory_effectiveness(self, analytics_memories: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calculate effectiveness metrics for proactive memory presentations."""
+        if not analytics_memories:
+            return {"total_presentations": 0, "effectiveness_score": 0.0}
+        
+        total_presentations = len(analytics_memories)
+        # This is a placeholder - in a real implementation, you'd track user engagement
+        # with presented memories to calculate true effectiveness
+        effectiveness_score = min(0.8, total_presentations / 100.0)  # Simple heuristic
+        
+        return {
+            "total_presentations": total_presentations,
+            "effectiveness_score": round(effectiveness_score, 2),
+            "average_memories_per_presentation": round(
+                sum(content.get("memory_count", 0) for memory in analytics_memories 
+                    for content in [memory.get("content", {})] if isinstance(content, dict)) / max(total_presentations, 1), 1
+            )
+        }
+    
+    def _is_recent(self, memory: Dict[str, Any], hours: int = 24) -> bool:
+        """Check if a memory was created within the specified number of hours."""
+        try:
+            created_at = memory.get("created_at")
+            if not created_at:
+                return False
+            
+            from datetime import datetime, timedelta
+            memory_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            cutoff_time = datetime.utcnow() - timedelta(hours=hours)
+            return memory_time >= cutoff_time
+        except:
+            return False
+
     def _estimate_search_time(self, total_memories: int) -> float:
         """Estimate search time based on collection size."""
         if total_memories < 1000:

@@ -402,3 +402,62 @@ class MemoryToolDefinitions:
             "properties": {},
             "description": "Optimize the Qdrant collection for better performance"
         }
+
+    # Proactive Memory tool schemas
+    @property
+    def configure_proactive_memory_schema(self) -> Dict[str, Any]:
+        """Schema for the configure_proactive_memory tool."""
+        return {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean",
+                    "description": "Enable or disable proactive memory checking",
+                    "default": True
+                },
+                "file_access_triggers": {
+                    "type": "boolean", 
+                    "description": "Enable memory checking on file access",
+                    "default": True
+                },
+                "tool_execution_triggers": {
+                    "type": "boolean",
+                    "description": "Enable memory checking before tool execution", 
+                    "default": True
+                },
+                "context_change_triggers": {
+                    "type": "boolean",
+                    "description": "Enable memory checking on context changes",
+                    "default": True
+                },
+                "min_similarity_threshold": {
+                    "type": "number",
+                    "description": "Minimum similarity threshold for memory relevance",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "default": 0.6
+                },
+                "max_memories_per_trigger": {
+                    "type": "integer",
+                    "description": "Maximum number of memories to present per trigger",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "default": 3
+                },
+                "auto_present_memories": {
+                    "type": "boolean",
+                    "description": "Automatically present memories to Claude",
+                    "default": True
+                }
+            },
+            "description": "Configure proactive memory checking behavior"
+        }
+
+    @property
+    def get_proactive_memory_stats_schema(self) -> Dict[str, Any]:
+        """Schema for the get_proactive_memory_stats tool."""
+        return {
+            "type": "object",
+            "properties": {},
+            "description": "Get statistics about proactive memory usage and effectiveness"
+        }
