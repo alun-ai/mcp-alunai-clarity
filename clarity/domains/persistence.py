@@ -514,8 +514,11 @@ class QdrantPersistenceDomain:
             results = []
             for point in points:
                 memory = dict(point.payload)
+                # Fix field name mapping
+                memory["id"] = memory.get("memory_id")
+                memory["type"] = memory.get("memory_type")
                 if hasattr(point, 'score'):
-                    memory["similarity_score"] = point.score
+                    memory["similarity"] = point.score
                 results.append(memory)
             
             return results
@@ -762,7 +765,7 @@ class QdrantPersistenceDomain:
             
             if types:
                 must_conditions.append(
-                    FieldCondition(key="type", match=MatchAny(any=types))
+                    FieldCondition(key="memory_type", match=MatchAny(any=types))
                 )
             
             if tier:
@@ -789,8 +792,8 @@ class QdrantPersistenceDomain:
             for point in results[0]:  # results is (points, next_page_offset)
                 payload = point.payload
                 memory = {
-                    "id": payload.get("id"),
-                    "type": payload.get("type"),
+                    "id": payload.get("memory_id"),
+                    "type": payload.get("memory_type"),
                     "importance": payload.get("importance"),
                     "tier": payload.get("tier"),
                     "created_at": payload.get("created_at"),
@@ -827,7 +830,7 @@ class QdrantPersistenceDomain:
             results = self.client.scroll(
                 collection_name=self.COLLECTION_NAME,
                 scroll_filter=Filter(
-                    must=[FieldCondition(key="id", match=MatchValue(value=memory_id))]
+                    must=[FieldCondition(key="memory_id", match=MatchValue(value=memory_id))]
                 ),
                 limit=1,
                 with_payload=True,
@@ -841,11 +844,11 @@ class QdrantPersistenceDomain:
             payload = point.payload
             
             # Update access tracking
-            await self._update_access_tracking(memory_id)
+            await self._update_access_tracking([memory_id])
             
             memory = {
-                "id": payload.get("id"),
-                "type": payload.get("type"),
+                "id": payload.get("memory_id"),
+                "type": payload.get("memory_type"),
                 "content": payload.get("content"),
                 "importance": payload.get("importance"),
                 "tier": payload.get("tier"),
@@ -878,7 +881,7 @@ class QdrantPersistenceDomain:
             results = self.client.scroll(
                 collection_name=self.COLLECTION_NAME,
                 scroll_filter=Filter(
-                    must=[FieldCondition(key="id", match=MatchValue(value=memory_id))]
+                    must=[FieldCondition(key="memory_id", match=MatchValue(value=memory_id))]
                 ),
                 limit=1,
                 with_payload=["tier"],  # Only retrieve tier field

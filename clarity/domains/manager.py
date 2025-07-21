@@ -155,11 +155,13 @@ class MemoryDomainManager:
         # Format results
         result_memories = []
         for memory in memories:
+            # Debug: check what fields are available
+            logger.debug(f"Memory fields: {list(memory.keys())}")
             result_memory = {
-                "id": memory["id"],
-                "type": memory["type"],
-                "content": memory["content"],
-                "similarity": memory.get("similarity", 0.0)
+                "id": memory.get("id", memory.get("memory_id")),
+                "type": memory.get("type", memory.get("memory_type")),
+                "content": memory.get("content"),
+                "similarity": memory.get("similarity", memory.get("similarity_score", 0.0))
             }
             
             # Include metadata if requested
@@ -173,7 +175,9 @@ class MemoryDomainManager:
         
         # Update access time for retrieved memories
         for memory in memories:
-            await self.temporal_domain.update_memory_access(memory["id"])
+            memory_id = memory.get("id", memory.get("memory_id"))
+            if memory_id:
+                await self.temporal_domain.update_memory_access(memory_id)
         
         return result_memories
     
@@ -283,7 +287,7 @@ class MemoryDomainManager:
                 new_tier = "long_term"
         
         # Store the updated memory
-        await self.persistence_domain.update_memory(memory, new_tier)
+        await self.persistence_domain.update_memory(memory_id, updates)
         
         logger.info(f"Updated memory {memory_id}")
         
@@ -302,12 +306,13 @@ class MemoryDomainManager:
         Returns:
             Success flag
         """
-        success = await self.persistence_domain.delete_memories(memory_ids)
+        deleted_ids = await self.persistence_domain.delete_memories(memory_ids)
+        success = len(deleted_ids) == len(memory_ids)
         
         if success:
-            logger.info(f"Deleted {len(memory_ids)} memories")
+            logger.info(f"Deleted {len(deleted_ids)} memories")
         else:
-            logger.error(f"Failed to delete memories")
+            logger.error(f"Failed to delete some memories. Deleted {len(deleted_ids)}/{len(memory_ids)}")
         
         return success
     

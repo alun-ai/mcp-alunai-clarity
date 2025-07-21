@@ -99,8 +99,11 @@ class TemporalDomain:
         memory["access_count"] = memory.get("access_count", 0) + 1
         
         # Save the updated memory
-        current_tier = await self.persistence_domain.get_memory_tier(memory_id)
-        await self.persistence_domain.update_memory(memory, current_tier)
+        updates = {
+            "last_accessed": memory["last_accessed"],
+            "access_count": memory["access_count"]
+        }
+        await self.persistence_domain.update_memory(memory_id, updates)
         
         # Check if consolidation is due
         await self._check_consolidation()

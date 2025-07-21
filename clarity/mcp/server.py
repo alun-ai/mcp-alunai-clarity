@@ -4,6 +4,7 @@ MCP server implementation for the memory system.
 
 import json
 import sys
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
@@ -699,7 +700,15 @@ class MemoryMcpServer:
                     }
                 }
                 
-                await self.domain_manager.store_memory(config_memory, "long_term")
+                await self.domain_manager.store_memory(
+                    memory_type="system_configuration",
+                    content=json.dumps(config),
+                    importance=1.0,
+                    metadata={
+                        "config_type": "proactive_memory",
+                        "auto_generated": False
+                    }
+                )
                 
                 # Update hook manager if available
                 if hasattr(self.domain_manager, 'autocode_domain') and self.domain_manager.autocode_domain:
