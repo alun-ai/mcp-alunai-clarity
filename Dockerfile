@@ -52,4 +52,34 @@ RUN chmod +x setup.sh 2>/dev/null || true
 # Volume for persistent data
 VOLUME ["/app/data"]
 
-ENTRYPOINT ["python", "-m", "clarity"]
+# Create entrypoint script to handle permissions
+RUN echo '#!/bin/bash\n\
+# Fix permissions for mounted volume\n\
+if [ -d "/app/data" ]; then\n\
+    # Get the host user ID from volume ownership\n\
+    HOST_UID=$(stat -c %u /app/data 2>/dev/null || echo 0)\n\
+    HOST_GID=$(stat -c %g /app/data 2>/dev/null || echo 0)\n\
+    \n\
+    # Only change permissions if not already root-owned\n\
+    if [ "$HOST_UID" != "0" ] && [ "$HOST_GID" != "0" ]; then\n\
+        # Create user if needed\n\
+        if ! id -u app-user >/dev/null 2>&1; then\n\
+            groupadd -g $HOST_GID app-group 2>/dev/null || true\n\
+            useradd -u $HOST_UID -g $HOST_GID -s /bin/bash app-user 2>/dev/null || true\n\
+        fi\n\
+        \n\
+        # Ensure data directory permissions\n\
+        chown -R $HOST_UID:$HOST_GID /app/data\n\
+        \n\
+        # Run as the host user\n\
+        exec su-exec app-user python -m clarity "$@"\n\
+    fi\n\
+fi\n\
+\n\
+# Default: run as root\n\
+exec python -m clarity "$@"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+# Install su-exec for user switching
+RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+
+ENTRYPOINT ["/app/entrypoint.sh"]

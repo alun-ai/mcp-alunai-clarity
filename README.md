@@ -113,6 +113,7 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
+        "--user", "$(id -u):$(id -g)",
         "-v", "./.claude/alunai-clarity:/app/data",
         "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
@@ -188,6 +189,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "run",
         "-i",
         "--rm",
+        "--user", "$(id -u):$(id -g)",
         "-v",
         "./.claude/alunai-clarity:/app/data",
         "-e",
@@ -572,6 +574,7 @@ docker pull ghcr.io/alun-ai/mcp-alunai-clarity:v1.0.0
 
 # 3. Run migration using CLI in Docker container
 docker run --entrypoint="python" \
+           --user $(id -u):$(id -g) \
            -v /path/to/your/memory.json:/tmp/memory.json \
            -v ./.claude/alunai-clarity:/app/data \
            ghcr.io/alun-ai/mcp-alunai-clarity:latest \
