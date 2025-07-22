@@ -136,9 +136,10 @@ class TemporalDomain:
         Returns:
             Adjusted memories
         """
-        # Weight configuration
-        recency_weight = self.config["retrieval"].get("recency_weight", 0.3)
-        importance_weight = self.config["retrieval"].get("importance_weight", 0.7)
+        # Weight configuration (with safe defaults)
+        retrieval_config = self.config.get("retrieval", {})
+        recency_weight = retrieval_config.get("recency_weight", 0.3)
+        importance_weight = retrieval_config.get("importance_weight", 0.7)
         
         now = datetime.now()
         adjusted_memories = []
@@ -150,7 +151,8 @@ class TemporalDomain:
                 last_accessed = datetime.fromisoformat(last_accessed_str)
                 days_since_access = (now - last_accessed).days
                 # Recency score: 1.0 for just accessed, decreasing with time
-                recency_score = 1.0 / (1.0 + days_since_access)
+                # Add small epsilon to prevent division by zero
+                recency_score = 1.0 / (1.0 + max(days_since_access, 0.1))
             except (ValueError, TypeError):
                 recency_score = 0.5  # Default if timestamp is invalid
             

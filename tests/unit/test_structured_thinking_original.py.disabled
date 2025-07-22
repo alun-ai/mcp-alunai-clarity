@@ -1,0 +1,528 @@
+"""
+Comprehensive test suite for Sequential/Structured Thinking features.
+
+This test suite validates the core structured thinking functionality including:
+- 5-stage thinking process (Problem → Research → Analysis → Synthesis → Conclusion)
+- Structured thought management with metadata
+- Session management and progress tracking
+- Relationship tracking between thoughts
+- Auto-progression and continuation logic
+
+Tests cover:
+- clarity/domains/structured_thinking.py
+- clarity/autocode/structured_thinking_extension.py
+- MCP server integration for thinking tools
+"""
+
+import pytest
+import asyncio
+import json
+import uuid
+from datetime import datetime
+from typing import Dict, List, Any
+from unittest.mock import Mock, patch
+
+from clarity.domains.structured_thinking import (
+    ThinkingStage, StructuredThought, ThinkingSession, 
+    StructuredThinkingDomain
+)
+from clarity.autocode.structured_thinking_extension import StructuredThinkingExtension
+from tests.framework.mcp_validation import MCPServerTestSuite
+
+
+class TestStructuredThinkingCore:
+    """Test core structured thinking models and logic."""
+    
+    def test_thinking_stage_enum(self):
+        """Test ThinkingStage enum values and ordering."""
+        stages = [
+            ThinkingStage.PROBLEM_DEFINITION,
+            ThinkingStage.RESEARCH_EXPLORATION, 
+            ThinkingStage.ANALYSIS_REASONING,
+            ThinkingStage.SYNTHESIS_INTEGRATION,
+            ThinkingStage.CONCLUSION_ARTICULATION
+        ]
+        
+        # Test stage ordering
+        for i in range(len(stages) - 1):
+            assert stages[i].value < stages[i + 1].value, f"Stage {stages[i]} should come before {stages[i+1]}"
+        
+        # Test stage names
+        assert ThinkingStage.PROBLEM_DEFINITION.name == "PROBLEM_DEFINITION"
+        assert ThinkingStage.RESEARCH_EXPLORATION.name == "RESEARCH_EXPLORATION"
+        assert ThinkingStage.ANALYSIS_REASONING.name == "ANALYSIS_REASONING"
+        assert ThinkingStage.SYNTHESIS_INTEGRATION.name == "SYNTHESIS_INTEGRATION"
+        assert ThinkingStage.CONCLUSION_ARTICULATION.name == "CONCLUSION_ARTICULATION"
+    
+    def test_structured_thought_creation(self):
+        """Test StructuredThought model creation and validation."""
+        thought = StructuredThought(
+            session_id="test_session",
+            stage=ThinkingStage.PROBLEM_DEFINITION,
+            content="This is a test problem definition",
+            thought_number=1,
+            total_expected=5,
+            tags=["test", "problem"],
+            axioms=["Testing is important"],
+            assumptions_challenged=["No testing needed"],
+            relationships=[]
+        )
+        
+        assert thought.session_id == "test_session"
+        assert thought.stage == ThinkingStage.PROBLEM_DEFINITION
+        assert thought.content == "This is a test problem definition"
+        assert thought.thought_number == 1
+        assert thought.total_expected == 5
+        assert thought.tags == ["test", "problem"]
+        assert thought.axioms == ["Testing is important"]
+        assert thought.assumptions_challenged == ["No testing needed"]
+        assert isinstance(thought.relationships, list)
+        assert isinstance(thought.timestamp, datetime)
+        assert isinstance(thought.thought_id, str)
+    
+    def test_thinking_session_creation(self):
+        """Test ThinkingSession model and thought management."""
+        session = ThinkingSession(
+            session_id="test_session",
+            initial_query="How to implement comprehensive testing?"
+        )
+        
+        assert session.session_id == "test_session"
+        assert session.initial_query == "How to implement comprehensive testing?"
+        assert session.current_stage == ThinkingStage.PROBLEM_DEFINITION
+        assert session.thoughts == []
+        assert isinstance(session.created_at, datetime)
+        assert not session.completed
+    
+    def test_thinking_session_add_thought(self):
+        """Test adding thoughts to a thinking session."""
+        session = ThinkingSession(
+            session_id="test_session",
+            initial_query="How to test structured thinking?"
+        )
+        
+        # Add first thought
+        thought1 = StructuredThought(
+            session_id="test_session",
+            stage=ThinkingStage.PROBLEM_DEFINITION,
+            content="Problem: Need comprehensive test coverage",
+            thought_number=1
+        )
+        session.add_thought(thought1)
+        
+        assert len(session.thoughts) == 1
+        assert session.thoughts[0] == thought1
+        assert session.current_stage == ThinkingStage.PROBLEM_DEFINITION
+        
+        # Add second thought in next stage
+        thought2 = StructuredThought(
+            session_id="test_session",
+            stage=ThinkingStage.RESEARCH_EXPLORATION,
+            content="Research: Existing testing frameworks and patterns",
+            thought_number=2
+        )
+        session.add_thought(thought2)
+        
+        assert len(session.thoughts) == 2
+        assert session.current_stage == ThinkingStage.RESEARCH_EXPLORATION
+    
+    def test_thinking_session_completion_detection(self):
+        """Test automatic session completion detection."""
+        session = ThinkingSession(
+            session_id="test_session",
+            initial_query="Test completion logic"
+        )
+        
+        # Add thoughts for all 5 stages
+        stages = [
+            ThinkingStage.PROBLEM_DEFINITION,
+            ThinkingStage.RESEARCH_EXPLORATION,
+            ThinkingStage.ANALYSIS_REASONING,
+            ThinkingStage.SYNTHESIS_INTEGRATION,
+            ThinkingStage.CONCLUSION_ARTICULATION
+        ]
+        
+        for i, stage in enumerate(stages):
+            thought = StructuredThought(
+                session_id="test_session",
+                stage=stage,
+                content=f"Content for stage {stage.name}",
+                thought_number=i + 1,
+                total_expected=5
+            )
+            session.add_thought(thought)
+        
+        # Session should be completed after all stages
+        assert session.completed
+        assert session.current_stage == ThinkingStage.CONCLUSION_ARTICULATION
+
+
+class TestStructuredThinkingDomain:
+    """Test StructuredThinkingDomain functionality."""
+    
+    @pytest.fixture
+    def thinking_domain(self):
+        """Create a StructuredThinkingDomain for testing."""
+        config = {
+            "structured_thinking": {
+                "auto_progression": True,
+                "relationship_detection": True,
+                "session_timeout_minutes": 60
+            }
+        }
+        return StructuredThinkingDomain(config)
+    
+    @pytest.mark.asyncio
+    async def test_domain_initialization(self, thinking_domain):
+        """Test domain initialization."""
+        await thinking_domain.initialize()
+        
+        assert thinking_domain.active_sessions == {}
+        assert thinking_domain.config is not None
+    
+    @pytest.mark.asyncio
+    async def test_process_structured_thought(self, thinking_domain):
+        """Test processing a structured thought."""
+        await thinking_domain.initialize()
+        
+        # Process first thought
+        result = await thinking_domain.process_structured_thought(
+            stage="problem_definition",
+            content="We need comprehensive testing for all features",
+            thought_number=1,
+            total_expected=5,
+            session_id="test_session",
+            tags=["testing", "coverage"],
+            axioms=["Good tests prevent bugs"],
+            assumptions_challenged=["Manual testing is sufficient"]
+        )
+        
+        assert result["success"] is True
+        assert "thought_id" in result
+        assert "session_id" in result
+        assert result["session_id"] == "test_session"
+        assert result["stage"] == "problem_definition"
+        
+        # Verify session was created
+        assert "test_session" in thinking_domain.active_sessions
+        session = thinking_domain.active_sessions["test_session"]
+        assert len(session.thoughts) == 1
+        assert session.current_stage == ThinkingStage.PROBLEM_DEFINITION
+    
+    @pytest.mark.asyncio 
+    async def test_auto_progression_logic(self, thinking_domain):
+        """Test automatic progression to next thinking stage."""
+        await thinking_domain.initialize()
+        
+        # Process thoughts that should trigger auto-progression
+        progression_triggers = [
+            ("problem_definition", "Clear problem: Need comprehensive test coverage"),
+            ("research_exploration", "Research complete: Found testing patterns and frameworks"), 
+            ("analysis_reasoning", "Analysis done: Identified testing gaps and priorities"),
+            ("synthesis_integration", "Synthesis complete: Created comprehensive testing plan")
+        ]
+        
+        for i, (stage, content) in enumerate(progression_triggers):
+            result = await thinking_domain.process_structured_thought(
+                stage=stage,
+                content=content,
+                thought_number=i + 1,
+                total_expected=5,
+                session_id="auto_progression_test"
+            )
+            
+            assert result["success"] is True
+            
+            # Check if auto-progression suggestion was generated
+            if i < len(progression_triggers) - 1:  # Not the last stage
+                assert "next_stage_suggestion" in result or "auto_progression" in result
+    
+    @pytest.mark.asyncio
+    async def test_relationship_detection(self, thinking_domain):
+        """Test relationship detection between thoughts."""
+        await thinking_domain.initialize()
+        
+        # Create base thought
+        await thinking_domain.process_structured_thought(
+            stage="problem_definition",
+            content="Problem: Lack of comprehensive testing",
+            thought_number=1,
+            session_id="relationship_test"
+        )
+        
+        # Add thought that builds on the first
+        result = await thinking_domain.process_structured_thought(
+            stage="research_exploration", 
+            content="Research shows testing frameworks can solve this problem",
+            thought_number=2,
+            session_id="relationship_test",
+            relationships=[{
+                "type": "builds_on",
+                "target_thought": 1,
+                "description": "This research directly addresses the identified problem"
+            }]
+        )
+        
+        assert result["success"] is True
+        
+        # Verify relationship was stored
+        session = thinking_domain.active_sessions["relationship_test"]
+        thought2 = session.thoughts[1]
+        assert len(thought2.relationships) == 1
+        assert thought2.relationships[0]["type"] == "builds_on"
+        assert thought2.relationships[0]["target_thought"] == 1
+    
+    @pytest.mark.asyncio
+    async def test_session_summary_generation(self, thinking_domain):
+        """Test comprehensive session summary generation."""
+        await thinking_domain.initialize()
+        
+        # Create complete thinking session
+        thoughts = [
+            ("problem_definition", "Problem: Need comprehensive testing"),
+            ("research_exploration", "Research: Testing frameworks and patterns"),
+            ("analysis_reasoning", "Analysis: Current gaps and priorities"), 
+            ("synthesis_integration", "Synthesis: Integrated testing strategy"),
+            ("conclusion_articulation", "Conclusion: Comprehensive testing plan")
+        ]
+        
+        for i, (stage, content) in enumerate(thoughts):
+            await thinking_domain.process_structured_thought(
+                stage=stage,
+                content=content,
+                thought_number=i + 1,
+                total_expected=5,
+                session_id="summary_test"
+            )
+        
+        # Generate session summary
+        summary = await thinking_domain.generate_thinking_summary(
+            session_id="summary_test",
+            include_relationships=True,
+            include_stage_summaries=True
+        )
+        
+        assert summary["success"] is True
+        assert "session_summary" in summary
+        assert "stage_summaries" in summary
+        assert "thought_count" in summary
+        assert summary["thought_count"] == 5
+        assert "completion_status" in summary
+    
+    @pytest.mark.asyncio
+    async def test_thinking_continuation_context(self, thinking_domain):
+        """Test getting context for continuing thinking sessions."""
+        await thinking_domain.initialize()
+        
+        # Create partial session
+        await thinking_domain.process_structured_thought(
+            stage="problem_definition",
+            content="Problem: Testing coverage gaps", 
+            thought_number=1,
+            session_id="continuation_test"
+        )
+        
+        await thinking_domain.process_structured_thought(
+            stage="research_exploration",
+            content="Research: Found several testing approaches",
+            thought_number=2, 
+            session_id="continuation_test"
+        )
+        
+        # Get continuation context
+        context = await thinking_domain.continue_thinking_process(
+            session_id="continuation_test",
+            suggested_stage="analysis_reasoning"
+        )
+        
+        assert context["success"] is True
+        assert "current_stage" in context
+        assert "next_suggested_stage" in context
+        assert "session_context" in context
+        assert "previous_thoughts" in context
+        assert len(context["previous_thoughts"]) == 2
+
+
+class TestStructuredThinkingExtension:
+    """Test StructuredThinkingExtension advanced features."""
+    
+    @pytest.fixture
+    def thinking_extension(self):
+        """Create StructuredThinkingExtension for testing."""
+        mock_domain_manager = Mock()
+        return StructuredThinkingExtension(mock_domain_manager)
+    
+    def test_extension_initialization(self, thinking_extension):
+        """Test extension initialization."""
+        assert thinking_extension.domain_manager is not None
+        assert hasattr(thinking_extension, 'analyze_thinking_patterns')
+        assert hasattr(thinking_extension, 'suggest_next_thoughts')
+    
+    def test_thinking_pattern_analysis(self, thinking_extension):
+        """Test thinking pattern analysis capabilities."""
+        # Mock session data
+        session_data = {
+            "thoughts": [
+                {"stage": "problem_definition", "content": "Problem identified"},
+                {"stage": "research_exploration", "content": "Research conducted"},
+                {"stage": "analysis_reasoning", "content": "Analysis performed"}
+            ]
+        }
+        
+        patterns = thinking_extension.analyze_thinking_patterns(session_data)
+        
+        assert isinstance(patterns, dict)
+        # Pattern analysis should identify thinking progression
+        assert "progression_quality" in patterns or "stage_distribution" in patterns
+
+
+@pytest.mark.asyncio
+class TestStructuredThinkingMCPIntegration:
+    """Test MCP server integration for structured thinking tools."""
+    
+    async def test_mcp_process_structured_thought(self):
+        """Test MCP tool for processing structured thoughts."""
+        suite = MCPServerTestSuite()
+        await suite.setup_test_environment()
+        
+        try:
+            # Test structured thought processing via MCP
+            result = await suite.validate_mcp_tool_execution(
+                tool_name="process_structured_thought",
+                arguments={
+                    "stage": "problem_definition",
+                    "content": "We need to test all structured thinking features comprehensively",
+                    "thought_number": 1,
+                    "total_expected": 5,
+                    "tags": ["testing", "structured_thinking"],
+                    "axioms": ["Comprehensive testing is essential"],
+                    "assumptions_challenged": ["Current testing is adequate"]
+                },
+                test_name="mcp_structured_thought_processing"
+            )
+            
+            assert result.passed, f"MCP structured thought processing failed: {result.errors}"
+            assert result.parsed_response.get("success") is True
+            assert "thought_id" in result.parsed_response
+            assert "session_id" in result.parsed_response
+            
+        finally:
+            await suite.teardown_test_environment()
+    
+    async def test_mcp_generate_thinking_summary(self):
+        """Test MCP tool for generating thinking summaries."""
+        suite = MCPServerTestSuite()
+        await suite.setup_test_environment()
+        
+        try:
+            # First create a thinking session with multiple thoughts
+            session_id = f"mcp_test_{uuid.uuid4().hex[:8]}"
+            
+            thoughts = [
+                ("problem_definition", "Problem: Need MCP testing"),
+                ("research_exploration", "Research: MCP testing patterns"),
+                ("analysis_reasoning", "Analysis: Testing requirements")
+            ]
+            
+            for i, (stage, content) in enumerate(thoughts):
+                result = await suite.validate_mcp_tool_execution(
+                    tool_name="process_structured_thought",
+                    arguments={
+                        "stage": stage,
+                        "content": content,
+                        "thought_number": i + 1,
+                        "session_id": session_id
+                    },
+                    test_name=f"mcp_setup_thought_{i}"
+                )
+                assert result.passed
+            
+            # Generate summary
+            summary_result = await suite.validate_mcp_tool_execution(
+                tool_name="generate_thinking_summary",
+                arguments={
+                    "session_id": session_id,
+                    "include_relationships": True,
+                    "include_stage_summaries": True
+                },
+                test_name="mcp_thinking_summary"
+            )
+            
+            assert summary_result.passed, f"MCP thinking summary failed: {summary_result.errors}"
+            assert summary_result.parsed_response.get("success") is True
+            assert "session_summary" in summary_result.parsed_response
+            
+        finally:
+            await suite.teardown_test_environment()
+    
+    async def test_mcp_continue_thinking_process(self):
+        """Test MCP tool for continuing thinking processes."""
+        suite = MCPServerTestSuite()
+        await suite.setup_test_environment()
+        
+        try:
+            # Create partial thinking session
+            session_id = f"continuation_test_{uuid.uuid4().hex[:8]}"
+            
+            await suite.validate_mcp_tool_execution(
+                tool_name="process_structured_thought",
+                arguments={
+                    "stage": "problem_definition",
+                    "content": "Problem: Testing thinking continuation",
+                    "thought_number": 1,
+                    "session_id": session_id
+                },
+                test_name="mcp_setup_continuation"
+            )
+            
+            # Test continuation
+            continuation_result = await suite.validate_mcp_tool_execution(
+                tool_name="continue_thinking_process",
+                arguments={
+                    "session_id": session_id,
+                    "suggested_stage": "research_exploration"
+                },
+                test_name="mcp_continue_thinking"
+            )
+            
+            assert continuation_result.passed, f"MCP thinking continuation failed: {continuation_result.errors}"
+            assert continuation_result.parsed_response.get("success") is True
+            assert "current_stage" in continuation_result.parsed_response
+            assert "next_suggested_stage" in continuation_result.parsed_response
+            
+        finally:
+            await suite.teardown_test_environment()
+
+
+if __name__ == "__main__":
+    # Allow running directly for debugging
+    import asyncio
+    
+    async def run_structured_thinking_tests():
+        """Run structured thinking tests directly."""
+        print("🧪 Running structured thinking tests...")
+        
+        # Run unit tests
+        core_tests = TestStructuredThinkingCore()
+        core_tests.test_thinking_stage_enum()
+        core_tests.test_structured_thought_creation()
+        core_tests.test_thinking_session_creation()
+        core_tests.test_thinking_session_add_thought()
+        core_tests.test_thinking_session_completion_detection()
+        print("✅ Core structured thinking tests passed")
+        
+        # Run domain tests
+        domain_tests = TestStructuredThinkingDomain()
+        thinking_domain = domain_tests.thinking_domain()
+        await domain_tests.test_domain_initialization(thinking_domain)
+        await domain_tests.test_process_structured_thought(thinking_domain)
+        print("✅ Structured thinking domain tests passed")
+        
+        # Run MCP integration tests
+        mcp_tests = TestStructuredThinkingMCPIntegration()
+        await mcp_tests.test_mcp_process_structured_thought()
+        print("✅ Structured thinking MCP integration tests passed")
+        
+        print("\n🎉 All structured thinking tests passed!")
+    
+    asyncio.run(run_structured_thinking_tests())

@@ -16,6 +16,8 @@ debug_scripts
 # Legacy data directories (now consolidated into .claude/alunai-clarity/)
 data/
 qdrant_data/
+.qdrant_coordination/
+test_qdrant/
 
 # Backup and temporary files
 *-backup/

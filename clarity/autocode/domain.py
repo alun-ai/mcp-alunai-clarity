@@ -588,27 +588,40 @@ class AutoCodeDomain:
     # Private implementation methods
     @async_timed("pattern_loading")
     async def _load_existing_patterns(self) -> None:
-        """Load existing patterns from storage with async optimization."""
+        """Load existing patterns from storage with async optimization and timeout protection."""
         async with async_timer("pattern_loading"):
             try:
+                # Skip pattern loading if persistence domain isn't fully ready to avoid initialization deadlock
+                if not hasattr(self.persistence_domain, 'client') or self.persistence_domain.client is None:
+                    logger.info("Skipping pattern loading during initialization - will load lazily on first use")
+                    return
+                
                 # Load both pattern types concurrently
                 async def load_project_patterns():
                     """Load project patterns from storage"""
-                    return await self.persistence_domain.search_memories(
-                        embedding=None,
-                        limit=100,
-                        types=["project_pattern"],
-                        min_similarity=0.0
-                    )
+                    try:
+                        return await self.persistence_domain.search_memories(
+                            embedding=None,
+                            limit=100,
+                            types=["project_pattern"],
+                            min_similarity=0.0
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to load project patterns: {e}")
+                        return []
                 
                 async def load_command_patterns():
                     """Load command patterns from storage"""
-                    return await self.persistence_domain.search_memories(
-                        embedding=None,
-                        limit=100,
-                        types=["command_pattern"],
-                        min_similarity=0.0
-                    )
+                    try:
+                        return await self.persistence_domain.search_memories(
+                            embedding=None,
+                            limit=100,
+                            types=["command_pattern"],
+                            min_similarity=0.0
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to load command patterns: {e}")
+                        return []
                 
                 # Execute both pattern loading operations concurrently
                 project_patterns, command_patterns = await parallel_map(

@@ -2,6 +2,7 @@
 MCP server implementation for the memory system.
 """
 
+import asyncio
 import json
 import sys
 import random
@@ -22,7 +23,7 @@ from clarity.domains.structured_thinking import (
     ThoughtRelationship, ThinkingSummary, ThinkingStage
 )
 from clarity.domains.structured_thinking_utils import ThinkingAnalyzer
-from clarity.shared.exceptions import MemoryOperationError, ValidationError
+from clarity.shared.exceptions import MemoryOperationError, ValidationError, ConfigurationError
 
 
 class MemoryMcpServer:

@@ -1,12 +1,12 @@
 # Infrastructure utilities for Clarity
 
-from .connection_pool import (
-    QdrantConnectionPool,
-    ConnectionConfig,
-    PooledConnection,
-    get_connection_pool,
-    close_connection_pool,
-    qdrant_connection
+# Unified Qdrant connection management
+from .unified_qdrant import (
+    get_qdrant_connection,
+    UnifiedConnectionConfig,
+    ConnectionStrategy,
+    get_unified_stats,
+    close_unified_qdrant_manager
 )
 
 from .cache import (
@@ -22,13 +22,12 @@ from .cache import (
 )
 
 __all__ = [
-    # Connection pool
-    'QdrantConnectionPool',
-    'ConnectionConfig', 
-    'PooledConnection',
-    'get_connection_pool',
-    'close_connection_pool',
-    'qdrant_connection',
+    # Unified Qdrant connection management
+    'get_qdrant_connection',
+    'UnifiedConnectionConfig',
+    'ConnectionStrategy', 
+    'get_unified_stats',
+    'close_unified_qdrant_manager',
     
     # Cache
     'InMemoryCache',

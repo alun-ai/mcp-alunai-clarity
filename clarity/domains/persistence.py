@@ -27,11 +27,13 @@ from qdrant_client.models import (
 from clarity.shared.lazy_imports import ml_deps, db_deps
 from clarity.shared.exceptions.base import QdrantConnectionError, MemoryOperationError, ValidationError
 from clarity.shared.infrastructure import (
-    ConnectionConfig, 
-    get_connection_pool, 
-    qdrant_connection,
     get_cache,
     cached
+)
+from clarity.shared.infrastructure.connection_pool import (
+    ConnectionConfig, 
+    get_connection_pool, 
+    qdrant_connection
 )
 from clarity.shared.infrastructure.shared_qdrant import get_shared_qdrant_client
 # Qdrant models will be imported lazily when needed
@@ -409,6 +411,14 @@ class QdrantPersistenceDomain:
             logger.warning(f"Invalid UUID '{original_id}' -> generated new UUID: {clean_id}")
         
         logger.debug(f"Preparing memory payload: original_id={original_id}, clean_id={clean_id}")
+        # Extract core fields that have special handling
+        core_fields = {
+            "memory_id", "type", "content", "importance", "tier", 
+            "created_at", "updated_at", "metadata", "context", 
+            "access_count", "last_accessed"
+        }
+        
+        # Build base payload
         payload = {
             "memory_id": clean_id,
             "memory_type": memory.get("type", "unknown"),
@@ -423,6 +433,12 @@ class QdrantPersistenceDomain:
             "last_accessed": memory.get("last_accessed"),
             "text_content": text_content,  # For full-text search
         }
+        
+        # Add any additional fields from memory that aren't core fields
+        # This preserves custom metadata fields like source, category, tags, etc.
+        for key, value in memory.items():
+            if key not in core_fields and key not in payload:
+                payload[key] = value
         
         return payload, text_content
     

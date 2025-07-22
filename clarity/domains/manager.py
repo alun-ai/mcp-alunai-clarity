@@ -211,7 +211,8 @@ class MemoryDomainManager:
             types=memory_types,
             limit=limit,
             offset=offset,
-            tier=tier
+            tier=tier,
+            include_content=include_content  # CRITICAL FIX: Pass include_content parameter
         )
         
         # Format results
@@ -228,7 +229,7 @@ class MemoryDomainManager:
             
             # Include content if requested
             if include_content:
-                result_memory["content"] = memory["content"]
+                result_memory["content"] = memory.get("content")
             
             result_memories.append(result_memory)
         

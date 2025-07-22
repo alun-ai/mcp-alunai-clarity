@@ -179,7 +179,7 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             },
             "mcp_awareness": {
                 "enabled": True,
-                "index_tools_on_startup": True,
+                "index_tools_on_startup": False,
                 "proactive_suggestions": True,
                 "suggest_alternatives": True,
                 "context_aware_suggestions": True,
@@ -294,7 +294,7 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
             },
             "mcp_awareness": {
                 "enabled": True,
-                "index_tools_on_startup": True,
+                "index_tools_on_startup": False,
                 "proactive_suggestions": True,
                 "suggest_alternatives": True,
                 "context_aware_suggestions": True,

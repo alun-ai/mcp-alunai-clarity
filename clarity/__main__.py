@@ -32,6 +32,11 @@ def main() -> None:
         action="store_true", 
         help="Enable debug mode"
     )
+    parser.add_argument(
+        "--quick-start",
+        action="store_true",
+        help="Skip non-essential initialization for faster startup (essential services only)"
+    )
     
     args = parser.parse_args()
     
@@ -101,14 +106,18 @@ def main() -> None:
     logger.info(f"Using configuration from {config_path}")
     logger.info(f"Using memory file: {memory_file_path}")
     
+    # Add quick-start flag to config
+    config["quick_start"] = args.quick_start
+    
     # Start the server (FastMCP's run() handles the event loop)
     server = MemoryMcpServer(config)
-    # Initialize server components
-    asyncio.run(server.domain_manager.initialize())
     
-    logger.info("Starting Memory MCP Server using stdio transport")
+    # Initialize server components asynchronously within the server startup
+    # This ensures lazy loading works properly and avoids premature embedding model loading
+    startup_mode = "quick-start (essential services only)" if args.quick_start else "full initialization"
+    logger.info(f"Starting Memory MCP Server using stdio transport ({startup_mode})")
     
-    # Run the FastMCP server (this handles event loop internally)
+    # Run the FastMCP server (this handles event loop internally and will initialize domains lazily)
     server.app.run()
 
 
