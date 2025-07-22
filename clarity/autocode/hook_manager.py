@@ -1310,7 +1310,12 @@ class HookManager:
             "build", "create", "develop", "optimize", "refactor", 
             "debug", "troubleshoot", "investigate", "research",
             "how should I", "what's the best way", "help me figure out",
-            "I need to understand", "break down", "step by step"
+            "I need to understand", "break down", "step by step",
+            # Project management and cleanup patterns
+            "going to", "need to", "have to", "should", "will",
+            "delete", "remove", "clean up", "migrate", "restructure",
+            "organize", "keep", "preserve", "maintain", "support",
+            "explore", "understand", "structure", "phase", "systematic"
         ]
         
         content_lower = content.lower()
@@ -1329,10 +1334,19 @@ class HookManager:
         # Check for multiple questions or requirements
         has_multiple_parts = any(marker in content for marker in ["?", "and", "also", "additionally", "furthermore"])
         
+        # Check for slash commands that indicate complex workflows
+        slash_command_patterns = [
+            "/m-explore", "/m-execute", "/m-fix-bug", "/m-refactor",
+            "/analyze", "/plan", "/design", "/implement"
+        ]
+        has_slash_command = any(cmd in content for cmd in slash_command_patterns)
+        
         # Scoring system (like complexity detection in existing code)
         score = 0
         if has_complexity_indicator:
             score += 2
+        if has_slash_command:
+            score += 3  # Slash commands are strong indicators of complex workflows
         if has_problem_pattern:
             score += 1
         if is_substantial:

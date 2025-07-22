@@ -22,6 +22,7 @@ from clarity.domains.structured_thinking import (
     ThoughtRelationship, ThinkingSummary, ThinkingStage
 )
 from clarity.domains.structured_thinking_utils import ThinkingAnalyzer
+from clarity.shared.exceptions import MemoryOperationError, ValidationError
 
 
 class MemoryMcpServer:
