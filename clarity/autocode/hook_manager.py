@@ -299,6 +299,16 @@ class HookManager:
             memory_type = arguments.get("memory_type", "")
             content = arguments.get("content", "")
             
+            # PROACTIVE MEMORY RETRIEVAL: After storing, immediately check for relevant memories
+            # This ensures Claude gets context from similar past work
+            if memory_type and content and self.proactive_config.get("enabled", True):
+                logger.info(f"AutoCode: Memory stored ({memory_type}), triggering proactive retrieval")
+                await self._auto_trigger_memory_check({
+                    "memory_type": memory_type,
+                    "content": str(content)[:200],  # First 200 chars for context
+                    "trigger": "post_memory_store"
+                })
+            
             # Check if this is code-related content
             if memory_type in ["code", "project_pattern", "session_summary"]:
                 logger.debug(f"AutoCode: Processing {memory_type} memory storage")
@@ -537,7 +547,14 @@ class HookManager:
                 await self._suggest_contextual_memories(tool_name, arguments)
                 
                 # For certain tools, also auto-trigger comprehensive memory check
-                if tool_name in ["Edit", "Write", "Bash", "Read"]:
+                # Include both Claude Code tool names and our own tool names
+                trigger_tools = [
+                    # Claude Code tools
+                    "Edit", "Write", "Bash", "Read", "MultiEdit", "Task", "Glob", "Grep",
+                    # Our MCP tools
+                    "store_memory", "retrieve_memory", "suggest_command", "get_project_patterns"
+                ]
+                if tool_name in trigger_tools:
                     await self._auto_trigger_memory_check({
                         "tool_name": tool_name,
                         "arguments": arguments,
@@ -654,12 +671,18 @@ class HookManager:
             # Format memories for presentation
             memory_summary = self._format_memories_for_presentation(limited_memories, context)
             
-            # Store as a special "proactive_memory" type for immediate reference
+            # ACTUALLY PRESENT TO CLAUDE: Print to console where Claude can see it
+            print(f"\n🧠 **Relevant Memory Context** ({context}):")
+            print("─" * 60)
+            print(memory_summary)
+            print("─" * 60)
+            
+            # ALSO store analytics for tracking effectiveness
             proactive_memory = {
                 "id": f"proactive_{int(time.time())}",
-                "type": "proactive_memory", 
-                "content": memory_summary,
-                "importance": 0.9,  # High importance for proactive suggestions
+                "type": "memory_presentation_analytics", 
+                "content": f"Presented {len(memories)} memories for: {context}",
+                "importance": 0.3,  # Lower importance for analytics
                 "metadata": {
                     "trigger_context": context,
                     "memory_count": len(memories),
@@ -668,33 +691,38 @@ class HookManager:
                 }
             }
             
-            # Store in short-term memory for immediate Claude access
+            # Store analytics only
             await self.domain_manager.store_memory(proactive_memory, "short_term")
             
             # Log for visibility 
-            logger.info(f"AutoCode: Automatically presented {len(memories)} memories to Claude for {context}")
+            logger.info(f"AutoCode: Successfully presented {len(memories)} memories to Claude for {context}")
             
         except Exception as e:
             logger.error(f"Error presenting memories to Claude: {e}")
     
     def _format_memories_for_presentation(self, memories: List[Dict[str, Any]], context: str) -> str:
         """Format memories in a natural way for Claude to understand and use."""
-        formatted_lines = [f"🧠 **Relevant Past Context** (triggered by {context}):\n"]
+        formatted_lines = []
         
         for i, memory in enumerate(memories[:3], 1):  # Limit to top 3 for readability
             content = memory.get("content", "")
             memory_type = memory.get("type", "memory")
+            importance = memory.get("importance", 0.5)
             created_at = memory.get("created_at", "")
             
             # Truncate long content for summary
-            if len(content) > 200:
-                content = content[:200] + "..."
+            if len(str(content)) > 300:
+                content = str(content)[:300] + "..."
             
-            formatted_lines.append(f"{i}. **{memory_type.replace('_', ' ').title()}** {created_at[:10] if created_at else ''}")
-            formatted_lines.append(f"   {content}")
+            # Extract timestamp if available
+            date_str = created_at[:10] if created_at else ""
+            importance_indicator = "🔥" if importance > 0.7 else "📝"
+            
+            formatted_lines.append(f"{importance_indicator} **{memory_type.replace('_', ' ').title()}** ({date_str})")
+            formatted_lines.append(f"  {content}")
             formatted_lines.append("")
         
-        formatted_lines.append("*This context was automatically retrieved based on your current activity.*")
+        formatted_lines.append("💡 *These memories were automatically retrieved to help with your current task*")
         
         return "\n".join(formatted_lines)
     
@@ -738,6 +766,30 @@ class HookManager:
         """Generate a search query from the provided context."""
         query_parts = []
         
+        # Handle user request context
+        if "user_request" in context:
+            user_request = context["user_request"].strip()
+            # Extract key terms from user request
+            key_terms = []
+            for term in user_request.split():
+                if len(term) > 3 and term.lower() not in ["the", "and", "for", "with", "this", "that", "have", "will", "from", "they", "what", "when", "where", "how"]:
+                    key_terms.append(term.lower())
+            query_parts.extend(key_terms[:5])  # Top 5 meaningful terms
+        
+        # Handle memory content context
+        if "content" in context:
+            content = str(context["content"])[:100]  # First 100 chars
+            # Extract key terms from content
+            for term in content.split():
+                if len(term) > 4 and not term.startswith(("http", "www")):
+                    query_parts.append(term.lower())
+                    if len(query_parts) >= 3:  # Limit content terms
+                        break
+        
+        # Handle memory type context
+        if "memory_type" in context:
+            query_parts.append(context["memory_type"])
+        
         if "file_path" in context:
             from pathlib import Path
             path = Path(context["file_path"])
@@ -755,7 +807,12 @@ class HookManager:
             project_name = Path(context["project_path"]).name
             query_parts.append(project_name)
         
-        return " ".join(query_parts) if query_parts else ""
+        # Handle tool execution context
+        if "tool_name" in context:
+            query_parts.append(context["tool_name"])
+        
+        query = " ".join(query_parts) if query_parts else "recent work context"
+        return query[:200]  # Limit query length
     
     async def _track_memory_usage(self, tool_name: str, arguments: Dict[str, Any], memories: List[Dict[str, Any]]) -> None:
         """Track which memories were presented for learning and optimization."""
@@ -1170,6 +1227,15 @@ class HookManager:
             request_data = context.get("data", {})
             user_request = request_data.get("request", "")
             request_context = request_data.get("context", {})
+            
+            # PROACTIVE MEMORY RETRIEVAL: Check for relevant memories on every user request
+            if user_request and len(user_request.strip()) > 10:  # Minimum meaningful query length
+                logger.info(f"AutoCode: User request received, triggering proactive memory retrieval")
+                await self._auto_trigger_memory_check({
+                    "user_request": user_request,
+                    "context": request_context,
+                    "trigger": "user_request"
+                })
             
             # MCP tool awareness
             if user_request and self.mcp_awareness_hooks:
