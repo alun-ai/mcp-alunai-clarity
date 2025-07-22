@@ -172,9 +172,12 @@ class QdrantPersistenceDomain:
                         timeout=self.pool_config.timeout
                     )
                 else:
-                    # Use shared client for local Qdrant to prevent concurrent access issues
-                    self.client = await get_shared_qdrant_client(
-                        qdrant_path=self.qdrant_path,
+                    # Local Qdrant - use direct client (shared client causing write permission issues in dev)
+                    QdrantClientClass = db_deps.QdrantClient
+                    if QdrantClientClass is None:
+                        raise ImportError("qdrant-client not available")
+                    self.client = QdrantClientClass(
+                        path=self.qdrant_path,
                         timeout=self.pool_config.timeout
                     )
                 
