@@ -72,14 +72,14 @@ if [ -d "/app/data" ]; then\n\
         chown -R $HOST_UID:$HOST_GID /app/data\n\
         \n\
         # Run as the host user\n\
-        exec su-exec app-user python -m clarity "$@"\n\
+        exec gosu app-user python -m clarity "$@"\n\
     fi\n\
 fi\n\
 \n\
 # Default: run as root\n\
 exec python -m clarity "$@"\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# Install su-exec for user switching
-RUN apt-get update && apt-get install -y su-exec && rm -rf /var/lib/apt/lists/*
+# Install gosu for user switching
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
 
 ENTRYPOINT ["/app/entrypoint.sh"]
