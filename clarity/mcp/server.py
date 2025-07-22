@@ -351,13 +351,20 @@ class MemoryMcpServer:
                 from clarity.domains.structured_thinking import ThinkingStage
                 start_time = time.time()
                 
+                # Ensure domains are initialized lazily on first structured thinking operation
+                await self._lazy_initialize_domains()
+                
                 # Validate stage
                 stage_normalized = stage.lower().replace(" ", "_").replace("-", "_")
                 try:
                     thinking_stage = ThinkingStage(stage_normalized)
                 except ValueError:
                     valid_stages = [s.value for s in ThinkingStage]
-                    return MCPResponseBuilder.error(f"Invalid thinking stage: {stage}. Valid stages: {valid_stages}")
+                    suggestion = "Use 'problem_definition' for planning activities" if "plan" in stage.lower() else ""
+                    error_msg = f"Invalid thinking stage: {stage}. Valid stages: {valid_stages}"
+                    if suggestion:
+                        error_msg += f". {suggestion}"
+                    return MCPResponseBuilder.error(error_msg)
                 
                 # Create relationships
                 thought_relationships = []
