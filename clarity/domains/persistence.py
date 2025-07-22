@@ -172,10 +172,10 @@ class QdrantPersistenceDomain:
                         timeout=self.pool_config.timeout
                     )
                 else:
-                    # Local Qdrant - use shared client for concurrent access
+                    # Use shared client for local Qdrant to prevent concurrent access issues
                     self.client = await get_shared_qdrant_client(
-                        self.qdrant_path, 
-                        self.pool_config.timeout
+                        qdrant_path=self.qdrant_path,
+                        timeout=self.pool_config.timeout
                     )
                 
                 # Ensure collection exists now that client is ready

@@ -36,6 +36,7 @@ class HookManager:
         
         # Recursion guards to prevent infinite loops
         self._memory_check_in_progress = False
+        self._structured_thinking_in_progress = False
         
         # Initialize MCP awareness hooks
         self.mcp_awareness_hooks = MCPAwarenessHooks(domain_manager)
@@ -992,7 +993,14 @@ class HookManager:
     
     async def _auto_trigger_structured_thinking(self, intent: str, context: Dict[str, Any]) -> None:
         """Automatically trigger structured thinking process for complex problems."""
+        # Prevent recursive structured thinking calls that can cause deadlock  
+        if self._structured_thinking_in_progress:
+            logger.debug("AutoCode: Skipping structured thinking trigger (recursion prevention)")
+            return
+            
         try:
+            self._structured_thinking_in_progress = True
+            
             # Create thinking session
             from datetime import datetime, timezone
             session_id = f"auto_thinking_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
@@ -1039,6 +1047,8 @@ class HookManager:
             
         except Exception as e:
             logger.error(f"Error in auto-trigger structured thinking: {e}")
+        finally:
+            self._structured_thinking_in_progress = False
     
     async def _process_auto_thinking_stage(
         self, 
@@ -1438,11 +1448,17 @@ class HookManager:
         
         Enhanced with multi-dimensional analysis similar to memory system's sophistication.
         """
+        # Prevent recursive structured thinking calls that can cause deadlock
+        if self._structured_thinking_in_progress:
+            logger.debug("AutoCode: Skipping structured thinking trigger (recursion prevention)")
+            return
+            
         if not self.structured_thinking_extension:
             logger.warning("AutoCode: Structured thinking extension not available")
             return
             
         try:
+            self._structured_thinking_in_progress = True
             # Enhanced context extraction with multi-dimensional analysis
             enhanced_context = await self._build_enhanced_context(content, context)
             
@@ -1494,9 +1510,11 @@ class HookManager:
                     return auto_trigger_result
             else:
                 logger.debug(f"AutoCode: Thinking suggestions below threshold - highest confidence: {max([s['confidence'] for s in thinking_suggestions['suggestions']], default=0)}")
-                
+            
         except Exception as e:
             logger.error(f"Error auto-triggering structured thinking: {e}")
+        finally:
+            self._structured_thinking_in_progress = False
     
     async def _build_enhanced_context(self, content: str, base_context: Dict[str, Any] = None) -> Dict[str, Any]:
         """

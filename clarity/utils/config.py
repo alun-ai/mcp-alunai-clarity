@@ -99,7 +99,8 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
         "server": {
             "host": "127.0.0.1",
             "port": 8000,
-            "debug": False
+            "debug": False,
+            "quick_start": False
         },
         "qdrant": {
             "path": qdrant_path,
@@ -214,7 +215,8 @@ def validate_config(config: Dict[str, Any]) -> Dict[str, Any]:
         "server": {
             "host": "127.0.0.1",
             "port": 8000,
-            "debug": False
+            "debug": False,
+            "quick_start": False
         },
         "qdrant": {
             "path": os.path.expanduser("~/.claude/alunai-clarity/qdrant"),

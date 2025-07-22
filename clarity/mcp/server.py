@@ -76,11 +76,16 @@ class MemoryMcpServer:
         ) -> str:
             """Store new information in memory."""
             try:
+                logger.info(f"🔍 DEBUG: store_memory called for type='{memory_type}'")
+                
                 # Ensure domains are initialized lazily on first memory operation
+                logger.info(f"🔍 DEBUG: About to call _lazy_initialize_domains()")
                 await self._lazy_initialize_domains()
+                logger.info(f"🔍 DEBUG: _lazy_initialize_domains() completed")
                 
                 import time
                 start_time = time.time()
+                logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory()")
                 
                 memory_id = await self.domain_manager.store_memory(
                     memory_type=memory_type,
@@ -1647,6 +1652,23 @@ class MemoryMcpServer:
         if self._quick_start_mode:
             return
             
+        # CRITICAL FIX: Only hook our own tools, not external MCP tools
+        our_tools = {
+            "store_memory", "retrieve_memory", "list_memories", "update_memory", "delete_memory",
+            "memory_stats", "process_structured_thought", "generate_thinking_summary", 
+            "continue_thinking_process", "analyze_thought_relationships", "suggest_command",
+            "get_project_patterns", "find_similar_sessions", "get_continuation_context",
+            "suggest_workflow_optimizations", "get_learning_progression", "autocode_stats",
+            "qdrant_performance_stats", "optimize_qdrant_collection", "suggest_memory_queries",
+            "check_relevant_memories", "configure_proactive_memory", "get_proactive_memory_stats",
+            "trigger_conversation_end", "auto_progress_thinking_stage", "suggest_proactive_thinking",
+            "auto_trigger_thinking_from_context", "get_enhanced_thinking_suggestions"
+        }
+        
+        if tool_name not in our_tools:
+            logger.debug(f"Skipping hooks for external tool: {tool_name}")
+            return
+            
         try:
             # Ensure hooks are initialized before use
             if await self._ensure_autocode_hooks_initialized() and self.hook_manager:
@@ -1906,34 +1928,47 @@ class MemoryMcpServer:
     
     async def _lazy_initialize_domains(self) -> None:
         """Initialize domains lazily when first memory operation is called."""
+        logger.info(f"🔍 DEBUG: _lazy_initialize_domains called, _domains_initialized={self._domains_initialized}")
         if not self._domains_initialized:
+            logger.info(f"🔍 DEBUG: _quick_start_mode={self._quick_start_mode}")
             if self._quick_start_mode:
                 logger.info("Performing quick-start initialization (essential services only)")
                 await self._quick_start_initialize()
             else:
                 logger.info("Performing full lazy domain initialization on first memory operation")
+                logger.info(f"🔍 DEBUG: About to call domain_manager.initialize()")
                 await self.domain_manager.initialize()
+                logger.info(f"🔍 DEBUG: domain_manager.initialize() completed")
                 
                 # Initialize AutoCode hooks if enabled (done after domains are ready)
-                if self.config.get("autocode", {}).get("enabled", True):
+                autocode_enabled = self.config.get("autocode", {}).get("enabled", True)
+                logger.info(f"🔍 DEBUG: AutoCode enabled={autocode_enabled}")
+                if autocode_enabled:
+                    logger.info(f"🔍 DEBUG: About to initialize AutoCode hooks")
                     try:
                         from clarity.autocode.hooks import AutoCodeHooks
                         from clarity.autocode.server import AutoCodeServerExtension
                         from clarity.autocode.hook_manager import HookManager, HookRegistry
                         
+                        logger.info(f"🔍 DEBUG: Creating AutoCodeHooks instance")
                         self.autocode_hooks = AutoCodeHooks(self.domain_manager)
+                        logger.info(f"🔍 DEBUG: Creating AutoCodeServerExtension instance")
                         self.autocode_server = AutoCodeServerExtension(self.domain_manager, self.autocode_hooks)
                         
                         # Initialize hook manager
+                        logger.info(f"🔍 DEBUG: Creating HookManager instance")
                         self.hook_manager = HookManager(self.domain_manager, self.autocode_hooks)
+                        logger.info(f"🔍 DEBUG: Registering HookManager")
                         HookRegistry.register_manager(self.hook_manager)
                         
                         logger.info("AutoCode hooks, server extensions, and hook manager initialized lazily")
                     except ImportError as e:
                         logger.warning(f"AutoCode components not available: {e}")
+                else:
+                    logger.info(f"🔍 DEBUG: AutoCode disabled, skipping hook initialization")
             
             self._domains_initialized = True
-            logger.info("Domain initialization completed")
+            logger.info("🔍 DEBUG: Domain initialization completed")
     
     async def _quick_start_initialize(self) -> None:
         """Initialize only essential domains for quick start mode."""
