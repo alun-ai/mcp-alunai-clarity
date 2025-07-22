@@ -47,6 +47,12 @@ class MemoryMcpServer:
         # Recursion guard for retrieve_memory calls
         self._retrieve_memory_in_progress = False
         
+        # Lazy initialization flag
+        self._domains_initialized = False
+        
+        # Quick-start mode flag
+        self._quick_start_mode = config.get("quick_start", False)
+        
         # Initialize AutoCode extensions
         self.autocode_hooks = None
         self.autocode_server = None
@@ -68,6 +74,9 @@ class MemoryMcpServer:
         ) -> str:
             """Store new information in memory."""
             try:
+                # Ensure domains are initialized lazily on first memory operation
+                await self._lazy_initialize_domains()
+                
                 import time
                 start_time = time.time()
                 
@@ -108,6 +117,9 @@ class MemoryMcpServer:
             include_metadata: bool = False
         ) -> str:
             """Retrieve relevant memories based on query."""
+            # Ensure domains are initialized lazily on first memory operation
+            await self._lazy_initialize_domains()
+            
             # Global protection against division by zero for problematic queries
             query_lower = query.lower()
             if ("testing" in query_lower and ("memory" in query_lower or "storage" in query_lower)):
@@ -179,6 +191,9 @@ class MemoryMcpServer:
         ) -> str:
             """List available memories with filtering options."""
             try:
+                # Ensure domains are initialized lazily on first memory operation
+                await self._lazy_initialize_domains()
+                
                 import time
                 start_time = time.time()
                 
@@ -275,6 +290,9 @@ class MemoryMcpServer:
         async def memory_stats() -> str:
             """Get statistics about the memory store."""
             try:
+                # Ensure domains are initialized lazily on first memory operation
+                await self._lazy_initialize_domains()
+                
                 import time
                 start_time = time.time()
                 
@@ -296,11 +314,12 @@ class MemoryMcpServer:
                 logger.error(f"Error in memory_stats: {str(e)}")
                 return MCPResponseBuilder.error(str(e))
         
-        # Register structured thinking tools
-        self._register_structured_thinking_tools()
+        # Register structured thinking tools (unless in quick-start mode)
+        if not self._quick_start_mode:
+            self._register_structured_thinking_tools()
         
-        # Register AutoCode tools if enabled
-        if self.config.get("autocode", {}).get("enabled", True):
+        # Register AutoCode tools if enabled and not in quick-start mode
+        if not self._quick_start_mode and self.config.get("autocode", {}).get("enabled", True):
             self._register_autocode_tools()
     
     def _register_structured_thinking_tools(self) -> None:
@@ -1621,12 +1640,20 @@ class MemoryMcpServer:
         result: Any = None,
         execution_time: float = None
     ) -> None:
-        """Helper method to trigger tool hooks."""
+        """Helper method to trigger tool hooks with timeout protection."""
+        # Skip hooks entirely in quick-start mode
+        if self._quick_start_mode:
+            return
+            
         try:
             # Ensure hooks are initialized before use
             if await self._ensure_autocode_hooks_initialized() and self.hook_manager:
-                await self.hook_manager.execute_tool_hooks(
-                    tool_name, arguments, result, execution_time
+                # Add timeout to prevent hook execution from hanging
+                await asyncio.wait_for(
+                    self.hook_manager.execute_tool_hooks(
+                        tool_name, arguments, result, execution_time
+                    ),
+                    timeout=30.0  # 30 second timeout for hook execution
                 )
                 
                 # Re-enable conversation end detection now that enum issues are fixed
@@ -1634,6 +1661,8 @@ class MemoryMcpServer:
                                 "suggest_workflow_optimizations", "qdrant_performance_stats", "memory_stats"]:
                     await self._maybe_trigger_conversation_end(tool_name, arguments, result)
                     
+        except asyncio.TimeoutError:
+            logger.warning(f"Hook execution timeout for {tool_name} - hook execution cancelled to prevent hanging")
         except (AttributeError, RuntimeError, ImportError, KeyError) as e:
             logger.error(f"Error triggering hooks for {tool_name}: {e}")
     
@@ -1686,22 +1715,12 @@ class MemoryMcpServer:
     
     async def _ensure_autocode_hooks_initialized(self) -> bool:
         """Ensure AutoCode hooks are initialized (lazy initialization)."""
-        if self.autocode_hooks is None and self.config.get("autocode", {}).get("enabled", True):
-            try:
-                from clarity.autocode.hooks import AutoCodeHooks
-                from clarity.autocode.server import AutoCodeServerExtension
-                from clarity.autocode.hook_manager import HookManager
-                
-                self.autocode_hooks = AutoCodeHooks(self.domain_manager)
-                self.autocode_server = AutoCodeServerExtension(self.domain_manager, self.autocode_hooks)
-                self.hook_manager = HookManager(self.domain_manager, self.autocode_hooks)
-                await self.hook_manager.register_default_hooks()
-                
-                logger.info("AutoCode hooks initialized lazily")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to initialize AutoCode hooks: {e}")
-                return False
+        # Skip hook initialization in quick-start mode
+        if self._quick_start_mode:
+            return False
+            
+        # Use the main lazy initialization method to ensure domains and hooks are ready
+        await self._lazy_initialize_domains()
         return self.autocode_hooks is not None
 
     async def trigger_manual_conversation_end(self, conversation_id: str = None) -> str:
@@ -1877,21 +1896,61 @@ class MemoryMcpServer:
 
     async def start(self) -> None:
         """Start the MCP server."""
-        # Initialize the memory domain manager
-        await self.domain_manager.initialize()
-        
-        # Initialize AutoCode hooks if enabled
-        if self.config.get("autocode", {}).get("enabled", True):
-            self.autocode_hooks = AutoCodeHooks(self.domain_manager)
-            self.autocode_server = AutoCodeServerExtension(self.domain_manager, self.autocode_hooks)
-            
-            # Initialize hook manager
-            self.hook_manager = HookManager(self.domain_manager, self.autocode_hooks)
-            HookRegistry.register_manager(self.hook_manager)
-            
-            logger.info("AutoCode hooks, server extensions, and hook manager initialized")
-        
-        logger.info("Starting Memory MCP Server using stdio transport")
+        # Note: Domain initialization is now lazy - will happen on first memory operation
+        logger.info("Starting Memory MCP Server using stdio transport (domains will initialize lazily)")
         
         # Start the server using FastMCP's run method
         self.app.run()
+    
+    async def _lazy_initialize_domains(self) -> None:
+        """Initialize domains lazily when first memory operation is called."""
+        if not self._domains_initialized:
+            if self._quick_start_mode:
+                logger.info("Performing quick-start initialization (essential services only)")
+                await self._quick_start_initialize()
+            else:
+                logger.info("Performing full lazy domain initialization on first memory operation")
+                await self.domain_manager.initialize()
+                
+                # Initialize AutoCode hooks if enabled (done after domains are ready)
+                if self.config.get("autocode", {}).get("enabled", True):
+                    try:
+                        from clarity.autocode.hooks import AutoCodeHooks
+                        from clarity.autocode.server import AutoCodeServerExtension
+                        from clarity.autocode.hook_manager import HookManager, HookRegistry
+                        
+                        self.autocode_hooks = AutoCodeHooks(self.domain_manager)
+                        self.autocode_server = AutoCodeServerExtension(self.domain_manager, self.autocode_hooks)
+                        
+                        # Initialize hook manager
+                        self.hook_manager = HookManager(self.domain_manager, self.autocode_hooks)
+                        HookRegistry.register_manager(self.hook_manager)
+                        
+                        logger.info("AutoCode hooks, server extensions, and hook manager initialized lazily")
+                    except ImportError as e:
+                        logger.warning(f"AutoCode components not available: {e}")
+            
+            self._domains_initialized = True
+            logger.info("Domain initialization completed")
+    
+    async def _quick_start_initialize(self) -> None:
+        """Initialize only essential domains for quick start mode."""
+        logger.info("Initializing essential domains only (persistence and temporal)")
+        
+        # Initialize only essential domains for basic memory operations
+        await self.domain_manager.persistence_domain.initialize()
+        logger.info("Persistence domain initialized")
+        
+        await self.domain_manager.temporal_domain.initialize()
+        logger.info("Temporal domain initialized")
+        
+        # Initialize episodic and semantic domains for basic content processing
+        await self.domain_manager.episodic_domain.initialize()
+        logger.info("Episodic domain initialized")
+        
+        await self.domain_manager.semantic_domain.initialize()
+        logger.info("Semantic domain initialized")
+        
+        # Skip AutoCode domain, hooks, pattern detection, session analysis, etc.
+        logger.info("Skipping AutoCode domain, hooks, and advanced analytics in quick-start mode")
+        logger.info("Essential domains initialized - basic memory operations available")

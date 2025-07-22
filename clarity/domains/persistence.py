@@ -83,6 +83,7 @@ class QdrantPersistenceDomain:
         self.client = None
         self.embedding_model = None
         self.connection_pool = None
+        self._client_initialization_lock = None
         
         # Initialize caches
         self.embedding_cache = get_cache(
@@ -99,12 +100,12 @@ class QdrantPersistenceDomain:
         )
         
     async def initialize(self) -> None:
-        """Initialize the Qdrant persistence domain."""
+        """Initialize the Qdrant persistence domain (lazy connection)."""
         try:
             logger.info("Initializing Qdrant persistence domain...")
             
-            # Initialize connection pool
-            pool_config = ConnectionConfig(
+            # Initialize connection pool configuration but don't establish connection yet
+            self.pool_config = ConnectionConfig(
                 url=self.qdrant_config.get("url"),
                 path=self.qdrant_path,  # Always use path when configured
                 api_key=self.qdrant_config.get("api_key"),
@@ -112,39 +113,78 @@ class QdrantPersistenceDomain:
                 prefer_grpc=self.qdrant_config.get("prefer_grpc", True)
             )
             
-            self.connection_pool = await get_connection_pool(pool_config)
-            await self.connection_pool.initialize()
+            # Store connection pool but don't initialize it yet (lazy)
+            self.connection_pool = await get_connection_pool(self.pool_config)
+            # NOTE: Removed await self.connection_pool.initialize() - will happen on first use
             
-            # Use shared client for concurrent access support
-            if self.qdrant_config.get("url"):
-                # Remote Qdrant - use direct client
-                QdrantClientClass = db_deps.QdrantClient
-                if QdrantClientClass is None:
-                    raise ImportError("qdrant-client not available")
-                self.client = QdrantClientClass(
-                    url=self.qdrant_config["url"],
-                    api_key=self.qdrant_config.get("api_key"),
-                    timeout=pool_config.timeout
-                )
-            else:
-                # Local Qdrant - use shared client for concurrent access
-                self.client = await get_shared_qdrant_client(
-                    self.qdrant_path, 
-                    pool_config.timeout
-                )
+            # Don't establish Qdrant client connection yet - true lazy initialization
+            # The client will be created on first vector operation
+            self.client = None
+            self._client_initialized = False
             
             # Initialize embedding model lazily (will be loaded on first use)
             self.embedding_model = None
             logger.debug(f"Embedding model {self.embedding_model_name} will be loaded lazily")
             
-            # Ensure collection exists
-            await self._ensure_collection()
+            # Don't ensure collection exists yet - will be done on first vector operation
+            # NOTE: Removed await self._ensure_collection() call
             
-            logger.info("Qdrant persistence domain initialized successfully")
+            logger.info("Qdrant persistence domain initialized successfully (connection deferred)")
             
         except (QdrantConnectionError, ImportError, OSError, RuntimeError, ValueError) as e:
             logger.error(f"Failed to initialize Qdrant persistence domain: {e}")
             raise
+    
+    async def _ensure_client_initialized(self) -> None:
+        """Ensure Qdrant client is initialized on first vector operation (thread-safe)."""
+        if self.client is not None and self._client_initialized:
+            return
+        
+        # Initialize lock if needed
+        if self._client_initialization_lock is None:
+            import asyncio
+            self._client_initialization_lock = asyncio.Lock()
+        
+        # Thread-safe lazy initialization
+        async with self._client_initialization_lock:
+            # Double-check pattern: another thread might have initialized while we waited
+            if self.client is not None and self._client_initialized:
+                return
+            
+            try:
+                logger.info("🔄 Initializing Qdrant client on first vector operation")
+                
+                # Initialize connection pool if not done yet
+                if not hasattr(self.connection_pool, '_initialized') or not self.connection_pool._initialized:
+                    await self.connection_pool.initialize()
+                
+                # Establish Qdrant client connection
+                if self.qdrant_config.get("url"):
+                    # Remote Qdrant - use direct client
+                    QdrantClientClass = db_deps.QdrantClient
+                    if QdrantClientClass is None:
+                        raise ImportError("qdrant-client not available")
+                    self.client = QdrantClientClass(
+                        url=self.qdrant_config["url"],
+                        api_key=self.qdrant_config.get("api_key"),
+                        timeout=self.pool_config.timeout
+                    )
+                else:
+                    # Local Qdrant - use shared client for concurrent access
+                    self.client = await get_shared_qdrant_client(
+                        self.qdrant_path, 
+                        self.pool_config.timeout
+                    )
+                
+                # Ensure collection exists now that client is ready
+                await self._ensure_collection()
+                
+                self._client_initialized = True
+                logger.info("✅ Qdrant client initialized successfully on first use")
+                
+            except (QdrantConnectionError, ImportError, OSError, RuntimeError, ValueError) as e:
+                logger.error(f"Failed to initialize Qdrant client on first use: {e}")
+                raise
     
     async def _ensure_collection(self) -> None:
         """Ensure the memories collection exists with proper configuration."""
@@ -188,11 +228,15 @@ class QdrantPersistenceDomain:
         if SentenceTransformerClass is None:
             raise ImportError("sentence-transformers not available")
         
-        logger.info(f"Loading embedding model: {self.embedding_model_name}")
+        import time
+        load_start = time.perf_counter()
+        logger.info(f"🔄 Lazy loading embedding model: {self.embedding_model_name}")
+        
         with redirect_stderr(StringIO()):
             self.embedding_model = SentenceTransformerClass(self.embedding_model_name)
         
-        logger.info("Embedding model loaded successfully")
+        load_time = time.perf_counter() - load_start
+        logger.info(f"✅ Embedding model loaded successfully in {load_time:.3f}s")
     
     def _generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for text with caching."""
@@ -394,6 +438,8 @@ class QdrantPersistenceDomain:
             Memory ID
         """
         try:
+            # Ensure Qdrant client is initialized on first vector operation
+            await self._ensure_client_initialized()
             # Prepare payload and extract text
             payload, text_content = self._prepare_memory_payload(memory)
             memory_id = payload["memory_id"]
@@ -447,6 +493,8 @@ class QdrantPersistenceDomain:
             List of matching memories
         """
         try:
+            # Ensure Qdrant client is initialized on first vector operation
+            await self._ensure_client_initialized()
             # Check if indexing is working by getting collection stats
             async with qdrant_connection() as client:
                 collection_info = client.get_collection(self.COLLECTION_NAME)
@@ -749,6 +797,8 @@ class QdrantPersistenceDomain:
             List of matching memories
         """
         try:
+            # Ensure Qdrant client is initialized on first vector operation
+            await self._ensure_client_initialized()
             # Build filters
             search_filters = []
             
@@ -849,6 +899,8 @@ class QdrantPersistenceDomain:
     async def get_memory_stats(self) -> Dict[str, Any]:
         """Get comprehensive memory statistics."""
         try:
+            # Ensure Qdrant client is initialized on first vector operation
+            await self._ensure_client_initialized()
             # Get collection info
             async with qdrant_connection() as client:
                 collection_info = client.get_collection(self.COLLECTION_NAME)
@@ -927,21 +979,39 @@ class QdrantPersistenceDomain:
                 async with qdrant_connection() as client:
                     # Get all points with vectors and payload
                     offset = None
-                    while True:
-                        scroll_result = client.scroll(
-                            collection_name=self.COLLECTION_NAME,
-                            limit=200,  # Process in batches
-                            offset=offset,
-                            with_payload=True,
-                            with_vectors=True
-                        )
-                        points, next_offset = scroll_result
-                        if not points:
+                    max_iterations = 10000  # Safety limit to prevent infinite loops
+                    iteration_count = 0
+                    
+                    while iteration_count < max_iterations:
+                        try:
+                            scroll_result = client.scroll(
+                                collection_name=self.COLLECTION_NAME,
+                                limit=200,  # Process in batches
+                                offset=offset,
+                                with_payload=True,
+                                with_vectors=True
+                            )
+                            points, next_offset = scroll_result
+                            iteration_count += 1
+                            
+                            if not points:
+                                logger.debug(f"No more points to backup after {iteration_count} iterations")
+                                break
+                                
+                            backup_data.extend(points)
+                            offset = next_offset
+                            
+                            if not next_offset:
+                                logger.debug(f"Reached end of collection after {iteration_count} iterations")
+                                break
+                                
+                        except Exception as e:
+                            logger.error(f"Error during collection backup at iteration {iteration_count}: {e}")
                             break
-                        backup_data.extend(points)
-                        offset = next_offset
-                        if not next_offset:
-                            break
+                    
+                    if iteration_count >= max_iterations:
+                        logger.warning(f"Collection backup stopped after reaching max iterations ({max_iterations})")
+                        raise RuntimeError("Collection backup exceeded maximum iteration limit - possible infinite loop detected")
                 
                 logger.info(f"Backed up {len(backup_data)} points for rebuild")
                 

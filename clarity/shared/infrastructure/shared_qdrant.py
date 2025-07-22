@@ -22,11 +22,14 @@ class SharedQdrantManager:
     
     Uses file-based coordination to ensure only one process creates the client,
     while allowing safe sharing through inter-process communication patterns.
+    
+    Implements true lazy connection - client is only created on first vector operation.
     """
     
     _instance: Optional['SharedQdrantManager'] = None
     _client: Optional[Any] = None  # QdrantClient
     _lock_file_path: Optional[str] = None
+    _connection_lock: Optional[Any] = None  # asyncio.Lock
     
     def __new__(cls) -> 'SharedQdrantManager':
         if cls._instance is None:
@@ -36,10 +39,17 @@ class SharedQdrantManager:
     def __init__(self):
         if not hasattr(self, '_initialized'):
             self._initialized = False
+            self._qdrant_path = None
+            self._timeout = None
+            self._connection_lock = None
     
     async def get_client(self, qdrant_path: str, timeout: float = 30.0) -> Any:
         """
-        Get or create a shared Qdrant client.
+        Get or create a shared Qdrant client (lazy initialization).
+        
+        This method now performs true lazy initialization - the actual Qdrant 
+        connection is only established when this method is first called, not 
+        during domain initialization.
         
         Args:
             qdrant_path: Path to Qdrant storage
@@ -48,12 +58,29 @@ class SharedQdrantManager:
         Returns:
             Shared QdrantClient instance
         """
+        # Return existing client if available
         if self._client is not None:
             return self._client
         
-        if not self._initialized:
+        # Store connection parameters for lazy initialization
+        self._qdrant_path = qdrant_path
+        self._timeout = timeout
+        
+        # Initialize connection lock if needed
+        if self._connection_lock is None:
+            import asyncio
+            self._connection_lock = asyncio.Lock()
+        
+        # Thread-safe lazy initialization
+        async with self._connection_lock:
+            # Double-check pattern: another thread might have initialized while we waited
+            if self._client is not None:
+                return self._client
+            
+            logger.info(f"🔄 Lazy initializing Qdrant connection to {qdrant_path}")
             await self._initialize_client(qdrant_path, timeout)
             self._initialized = True
+            logger.info(f"✅ Qdrant connection established successfully")
         
         return self._client
     
@@ -77,11 +104,19 @@ class SharedQdrantManager:
         
         while waited < max_wait_time:
             try:
-                # Try to create client
-                if await self._try_create_client(qdrant_path, timeout, lock_file):
+                # Try to create client with timeout
+                if await asyncio.wait_for(
+                    self._try_create_client(qdrant_path, timeout, lock_file),
+                    timeout=min(5.0, max_wait_time - waited)  # Max 5s per attempt
+                ):
                     return
                     
                 # If failed due to lock, wait and retry
+                await asyncio.sleep(wait_interval)
+                waited += wait_interval
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"Client creation timeout after {waited:.1f}s, retrying...")
                 await asyncio.sleep(wait_interval)
                 waited += wait_interval
                 
