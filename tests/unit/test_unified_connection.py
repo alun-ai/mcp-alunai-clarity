@@ -182,14 +182,19 @@ class TestConnectionLifecycle:
             pass
     
     @pytest.mark.asyncio
-    async def test_connection_manager_singleton(self):
-        """Test that UnifiedQdrantManager uses singleton pattern."""
+    async def test_connection_manager_uses_shared_manager(self):
+        """Test that UnifiedQdrantManager properly uses SharedQdrantManager."""
         from clarity.shared.infrastructure.unified_qdrant import UnifiedQdrantManager
         
         manager1 = UnifiedQdrantManager()
         manager2 = UnifiedQdrantManager()
         
-        assert manager1 is manager2  # Same instance
+        # Instances are different (not singleton), but they should use same SharedQdrantManager
+        assert manager1 is not manager2  # Different instances
+        
+        # Both should have SharedQdrantManager instances
+        assert hasattr(manager1, '_shared_manager')
+        assert hasattr(manager2, '_shared_manager')
     
     @pytest.mark.asyncio
     async def test_manager_initialization_idempotency(self):

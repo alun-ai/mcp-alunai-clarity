@@ -126,38 +126,23 @@ class UnifiedQdrantManager:
     """
     Unified Qdrant connection manager with adaptive strategies.
     
-    Automatically chooses optimal connection pattern based on:
-    - Local vs remote storage detection
-    - Single vs multi-process usage analysis
-    - Concurrency requirements assessment  
-    - Performance characteristics monitoring
+    This manager wraps the existing SharedQdrantManager and provides
+    intelligent connection strategy selection and monitoring.
     
-    Replaces all existing connection patterns:
-    - get_shared_qdrant_client() → Unified manager
-    - qdrant_connection() → Unified manager  
-    - Direct QdrantClient() → Unified manager
-    - Inline connection management → Unified manager
+    Uses SharedQdrantManager for actual connection management while
+    adding strategy detection and performance optimization.
     """
     
-    _instance: Optional['UnifiedQdrantManager'] = None
-    _initialization_lock: Optional[asyncio.Lock] = None
-    
-    def __new__(cls) -> 'UnifiedQdrantManager':
-        """Singleton pattern implementation."""
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialized = False
-        return cls._instance
-    
     def __init__(self):
-        """Initialize manager state (called once per singleton)."""
-        if hasattr(self, '_initialized') and self._initialized:
-            return
-            
+        """Initialize manager state."""
         # Core configuration and state
         self._config: Optional[UnifiedConnectionConfig] = None
         self._strategy: Optional[ConnectionStrategy] = None
         self._stats = ConnectionStats()
+        
+        # Use existing SharedQdrantManager for connections
+        from clarity.shared.infrastructure.shared_qdrant import SharedQdrantManager
+        self._shared_manager = SharedQdrantManager()
         
         # Connection instances for different strategies
         self._single_client: Optional[Any] = None  # QdrantClient
@@ -174,8 +159,7 @@ class UnifiedQdrantManager:
         self._client_initialized = False
         self._health_monitoring_active = False
         
-        self._initialized = True
-        logger.debug("UnifiedQdrantManager singleton instance created")
+        logger.debug("UnifiedQdrantManager instance created")
     
     async def initialize(self, config: UnifiedConnectionConfig) -> None:
         """
@@ -184,10 +168,10 @@ class UnifiedQdrantManager:
         Thread-safe initialization with configuration change detection.
         Supports reinitialization if configuration changes.
         """
-        if self._initialization_lock is None:
-            self._initialization_lock = asyncio.Lock()
+        if self._client_lock is None:
+            self._client_lock = asyncio.Lock()
         
-        async with self._initialization_lock:
+        async with self._client_lock:
             # Check if already initialized with same config
             if self._config is not None:
                 if self._config == config:
@@ -421,9 +405,8 @@ class UnifiedQdrantManager:
             async with self._client_lock:
                 if self._shared_client is None:  # Double-check pattern
                     logger.debug("Acquiring shared Qdrant client for multi-process coordination")
-                    # Use existing shared client implementation for coordination
-                    from clarity.shared.infrastructure.shared_qdrant import get_shared_qdrant_client
-                    self._shared_client = await get_shared_qdrant_client(
+                    # Use the SharedQdrantManager instance directly
+                    self._shared_client = await self._shared_manager.get_client(
                         self._config.path, self._config.timeout
                     )
                     logger.info("Shared Qdrant client acquired successfully")
@@ -644,6 +627,10 @@ class UnifiedQdrantManager:
         
         # Clean up shared client (handled by SharedQdrantManager)
         if self._shared_client:
+            try:
+                await self._shared_manager.close()
+            except Exception as e:
+                logger.warning(f"Error closing shared client: {e}")
             self._shared_client = None
         
         logger.info("Connection cleanup completed")
@@ -657,7 +644,7 @@ class UnifiedQdrantManager:
         logger.info("UnifiedQdrantManager shutdown completed")
 
 
-# Global singleton instance
+# Global manager instance (not singleton)
 _unified_manager = UnifiedQdrantManager()
 
 
