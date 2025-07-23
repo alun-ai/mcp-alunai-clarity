@@ -2001,7 +2001,7 @@ class MemoryMcpServer:
                             "hooks": [
                                 {
                                     "type": "command",
-                                    "command": f"docker exec {container_name} python /app/clarity/mcp/hook_analyzer.py --prompt-submit --prompt={{prompt}}",
+                                    "command": f"docker exec {container_name} python /app/clarity/mcp/hook_analyzer.py --prompt-submit --prompt='{{prompt}}'",
                                     "timeout_ms": 2000,
                                     "continue_on_error": True,
                                     "modify_prompt": True
@@ -2019,30 +2019,17 @@ class MemoryMcpServer:
                 }
             }
             
-            # Write hook configuration to project-specific directory
-            # This follows the same pattern used for Qdrant directory creation
-            config_path = "./.claude/alunai-clarity/hooks.json"
-            config_dir = os.path.dirname(config_path)
-            os.makedirs(config_dir, exist_ok=True)
+            # Write hook configuration to project .claude directory (same location as Qdrant)
+            # The project root is mounted at /app, so .claude/alunai-clarity is at /app/.claude/alunai-clarity
+            claude_dir = "/app/.claude/alunai-clarity"
+            os.makedirs(claude_dir, exist_ok=True)
             
-            # Merge with existing configuration if present
-            existing_config = {}
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, 'r') as f:
-                        existing_config = json.load(f)
-                except Exception as e:
-                    logger.debug(f"Could not read existing hooks: {e}")
+            hooks_path = f"{claude_dir}/hooks.json"
             
-            # Merge configurations (our hooks take precedence)
-            merged_config = existing_config.copy()
-            merged_config.update(hook_config)
+            with open(hooks_path, 'w') as f:
+                json.dump(hook_config, f, indent=2)
             
-            # Write the configuration
-            with open(config_path, 'w') as f:
-                json.dump(merged_config, f, indent=2)
-            
-            logger.info(f"✅ Claude Code hooks configured automatically at {config_path}")
+            logger.info(f"✅ Claude Code hooks created at: {hooks_path}")
             logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
             
         except Exception as e:
