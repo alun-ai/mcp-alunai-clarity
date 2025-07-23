@@ -2020,7 +2020,13 @@ class MemoryMcpServer:
                 with open(config_path, 'w') as f:
                     json.dump(existing_config, f, indent=2)
                 
-                logger.info(f"✅ Claude Code hooks added to existing config: {config_path}")
+                # Also create hooks.json for Claude Code compatibility
+                hooks_path = "/app/.claude/alunai-clarity/hooks.json"
+                with open(hooks_path, 'w') as f:
+                    json.dump(hook_config, f, indent=2)
+                
+                logger.info(f"✅ Claude Code hooks added to config: {config_path}")
+                logger.info(f"✅ Claude Code hooks.json created: {hooks_path}")
                 logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
             else:
                 logger.warning(f"Config file not found at {config_path}, cannot add hooks")
