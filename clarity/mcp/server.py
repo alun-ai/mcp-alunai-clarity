@@ -2004,11 +2004,13 @@ class MemoryMcpServer:
                 }
             }
             
-            # Add hooks configuration to existing config file (check both possible names)
-            # Users may have either config.json or default_config.json
+            # Add hooks configuration to existing config file (check both possible names and locations)
+            # Users may have config files in different locations depending on their setup
             possible_config_paths = [
                 "/app/.claude/alunai-clarity/config.json",
-                "/app/.claude/alunai-clarity/default_config.json"
+                "/app/.claude/alunai-clarity/default_config.json",
+                "/app/data/config.json",
+                "/app/data/default_config.json"
             ]
             
             config_path = None
@@ -2029,8 +2031,15 @@ class MemoryMcpServer:
                 with open(config_path, 'w') as f:
                     json.dump(existing_config, f, indent=2)
                 
-                # Also create hooks.json for Claude Code compatibility
-                hooks_path = "/app/.claude/alunai-clarity/hooks.json"
+                # Also create hooks.json for Claude Code compatibility in same directory as config
+                # Determine hooks.json path based on config location
+                if "/app/data/" in config_path:
+                    hooks_path = "/app/data/hooks.json"
+                else:
+                    hooks_path = "/app/.claude/alunai-clarity/hooks.json"
+                    # Ensure the directory exists for .claude path
+                    os.makedirs("/app/.claude/alunai-clarity", exist_ok=True)
+                
                 with open(hooks_path, 'w') as f:
                     json.dump(hook_config, f, indent=2)
                 
