@@ -2031,20 +2031,35 @@ class MemoryMcpServer:
                 with open(config_path, 'w') as f:
                     json.dump(existing_config, f, indent=2)
                 
-                # Also create hooks.json for Claude Code compatibility in same directory as config
-                # Determine hooks.json path based on config location
+                # Create hooks.json for Claude Code compatibility in multiple locations
+                # This ensures both container and host Claude Code can find the hooks
+                hooks_paths = []
+                
+                # Primary location: same directory as config file
                 if "/app/data/" in config_path:
-                    hooks_path = "/app/data/hooks.json"
+                    hooks_paths.append("/app/data/hooks.json")
                 else:
-                    hooks_path = "/app/.claude/alunai-clarity/hooks.json"
+                    hooks_paths.append("/app/.claude/alunai-clarity/hooks.json")
                     # Ensure the directory exists for .claude path
                     os.makedirs("/app/.claude/alunai-clarity", exist_ok=True)
                 
-                with open(hooks_path, 'w') as f:
-                    json.dump(hook_config, f, indent=2)
+                # Secondary location: mounted data directory (accessible to host)
+                # This allows host Claude Code to find hooks even if config is elsewhere
+                if "/app/data/hooks.json" not in hooks_paths:
+                    hooks_paths.append("/app/data/hooks.json")
+                
+                # Write hooks.json to all locations
+                for hooks_path in hooks_paths:
+                    try:
+                        # Ensure directory exists
+                        os.makedirs(os.path.dirname(hooks_path), exist_ok=True)
+                        with open(hooks_path, 'w') as f:
+                            json.dump(hook_config, f, indent=2)
+                        logger.info(f"✅ Claude Code hooks.json created: {hooks_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to create hooks.json at {hooks_path}: {e}")
                 
                 logger.info(f"✅ Claude Code hooks added to config: {config_path}")
-                logger.info(f"✅ Claude Code hooks.json created: {hooks_path}")
                 logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
             else:
                 logger.warning(f"No config file found at any of these paths: {possible_config_paths}, cannot add hooks")
