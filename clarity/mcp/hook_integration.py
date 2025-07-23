@@ -12,6 +12,7 @@ import re
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from loguru import logger
 from datetime import datetime
+from .ultrathink_config import UltrathinkConfig
 
 if TYPE_CHECKING:
     from .tool_indexer import MCPToolIndexer
@@ -81,6 +82,80 @@ class MCPHookIntegration:
                 r'recall.*from'
             ]
         }
+        
+        # Patterns for detecting structured thinking triggers
+        self.structured_thinking_patterns = [
+            # Explicit structured thinking requests
+            r'\bstructured\s+thinking\b',
+            r'\bthinking\s+process\b',
+            r'\bstructured\s+approach\b',
+            r'\bstep\s+by\s+step\b',
+            r'\bstep-by-step\b',
+            r'\bsystematic\s+analysis\b',
+            r'\bcomprehensive\s+analysis\b',
+            r'\bdetailed\s+analysis\b',
+            r'\bmethodical\s+approach\b',
+            
+            # Problem-solving patterns
+            r'\bhow\s+should\s+we\s+approach\b',
+            r'\bwhat\s+are\s+the\s+steps\b',
+            r'\bbreak\s+down\s+the\s+problem\b',
+            r'\banalyze\s+this\s+problem\b',
+            r'\bsolve\s+this\s+step\s+by\s+step\b',
+            r'\bwalk\s+through\s+the\s+process\b',
+            r'\bthink\s+through\s+this\b',
+            r'\breason\s+through\s+this\b',
+            
+            # Complex reasoning indicators
+            r'\bcomplex\s+(problem|challenge|issue|situation)\b',
+            r'\bmultiple\s+(factors|variables|considerations)\b',
+            r'\bneed\s+to\s+consider\b.*\bmultiple\b',
+            r'\brequires\s+careful\s+(thought|analysis|consideration)\b',
+            r'\bcomprehensive\s+(understanding|review|evaluation)\b',
+            r'\bin-depth\s+(analysis|review|evaluation)\b',
+            r'\bthorough\s+(analysis|review|evaluation)\b',
+            
+            # Decision-making patterns
+            r'\bmake\s+a\s+decision\s+about\b',
+            r'\bchoose\s+between\s+options\b',
+            r'\bevaluate\s+the\s+alternatives\b',
+            r'\bweigh\s+the\s+(pros\s+and\s+cons|options|alternatives)\b',
+            r'\bcompare\s+and\s+contrast\b',
+            r'\bpros\s+and\s+cons\b',
+            
+            # Planning and strategy patterns
+            r'\bplan\s+for\b.*\b(project|implementation|strategy)\b',
+            r'\bdevelop\s+a\s+(strategy|plan|approach)\b',
+            r'\bcreate\s+a\s+(roadmap|framework|methodology)\b',
+            r'\bdesign\s+an\s+approach\b',
+            r'\barchitecture\s+(design|planning)\b',
+            
+            # Learning and understanding patterns
+            r'\bunderstand\s+the\s+(concept|system|process)\b',
+            r'\blearn\s+about\b.*\b(complex|advanced|detailed)\b',
+            r'\bexplain\s+the\s+(relationship|connection|interaction)\b',
+            r'\bhelp\s+me\s+understand\b',
+            
+            # Creative and innovative thinking
+            r'\bbrainstorm\b.*\b(ideas|solutions|approaches)\b',
+            r'\bcreative\s+(solutions|approaches|thinking)\b',
+            r'\binnovative\s+(ideas|solutions|approaches)\b',
+            r'\bthink\s+outside\s+the\s+box\b',
+            r'\bunconventional\s+(approach|solution|method)\b'
+        ]
+        
+        # Initialize ultrathink configuration
+        self.ultrathink_config_manager = UltrathinkConfig()
+        self.ultrathink_config = self.ultrathink_config_manager.get_config()
+        
+        # Combine built-in patterns with custom patterns
+        self.all_thinking_patterns = self.structured_thinking_patterns.copy()
+        custom_patterns = self.ultrathink_config_manager.get_custom_patterns()
+        for custom_pattern in custom_patterns:
+            if isinstance(custom_pattern, dict) and 'pattern' in custom_pattern:
+                self.all_thinking_patterns.append(custom_pattern['pattern'])
+            elif isinstance(custom_pattern, str):
+                self.all_thinking_patterns.append(custom_pattern)
     
     async def setup_hooks(self) -> bool:
         """
@@ -307,6 +382,9 @@ class MCPHookIntegration:
         """Suggest MCP opportunities from user prompts."""
         prompt = data.get('prompt', '')
         
+        # First, check for structured thinking patterns and enable ultrathink if needed
+        enhanced_prompt = await self._enhance_prompt_with_ultrathink(prompt)
+        
         # Analyze prompt for MCP tool opportunities
         opportunities = []
         
@@ -325,7 +403,7 @@ class MCPHookIntegration:
         
         if opportunities:
             # Generate suggestion message
-            suggestion = await self._format_prompt_suggestion(opportunities, prompt)
+            suggestion = await self._format_prompt_suggestion(opportunities, enhanced_prompt)
             
             # Log this suggestion
             await self._log_learning_opportunity({
@@ -338,7 +416,8 @@ class MCPHookIntegration:
             
             return suggestion
         
-        return None
+        # Return enhanced prompt even if no MCP opportunities found
+        return enhanced_prompt if enhanced_prompt != prompt else None
     
     async def _detect_command_opportunities(self, command: str) -> List[Dict[str, Any]]:
         """Detect MCP tool opportunities in bash commands."""
@@ -610,3 +689,185 @@ class MCPHookIntegration:
             logger.error(f"Error generating proactive suggestions: {e}")
         
         return suggestions[:3]  # Limit to top 3 suggestions
+    
+    async def _enhance_prompt_with_ultrathink(self, prompt: str) -> str:
+        """
+        Detect structured thinking patterns and enhance prompt with ultrathink directive.
+        
+        Args:
+            prompt: The original user prompt
+            
+        Returns:
+            Enhanced prompt with ultrathink directive if patterns detected, otherwise original prompt
+        """
+        if not self.ultrathink_config_manager.is_enabled():
+            return prompt
+        
+        # Check for exclusion patterns first
+        exclusion_patterns = self.ultrathink_config_manager.get_exclusion_patterns()
+        for exclusion_pattern in exclusion_patterns:
+            if re.search(exclusion_pattern, prompt, re.IGNORECASE):
+                logger.debug(f"Ultrathink disabled due to exclusion pattern: {exclusion_pattern}")
+                return prompt
+        
+        # Check for structured thinking patterns
+        thinking_matches = []
+        confidence_score = 0.0
+        pattern_weights = self.ultrathink_config_manager.get_pattern_weights()
+        confidence_scores = self.ultrathink_config_manager.get_confidence_scores()
+        
+        # Check built-in patterns
+        for pattern in self.all_thinking_patterns:
+            matches = re.findall(pattern, prompt, re.IGNORECASE)
+            if matches:
+                thinking_matches.extend(matches)
+                
+                # Determine confidence boost based on pattern keywords
+                pattern_lower = pattern.lower()
+                if any(keyword in pattern_lower for keyword in pattern_weights.get('high_confidence', [])):
+                    confidence_score += confidence_scores.get('high_confidence', 0.3)
+                elif any(keyword in pattern_lower for keyword in pattern_weights.get('medium_confidence', [])):
+                    confidence_score += confidence_scores.get('medium_confidence', 0.2)
+                else:
+                    confidence_score += confidence_scores.get('low_confidence', 0.1)
+        
+        # Check custom patterns with their specific weights
+        custom_patterns = self.ultrathink_config_manager.get_custom_patterns()
+        for custom_pattern in custom_patterns:
+            if isinstance(custom_pattern, dict):
+                pattern = custom_pattern.get('pattern', '')
+                weight_category = custom_pattern.get('weight_category', 'medium_confidence')
+            else:
+                pattern = custom_pattern
+                weight_category = 'medium_confidence'
+            
+            if pattern:
+                matches = re.findall(pattern, prompt, re.IGNORECASE)
+                if matches:
+                    thinking_matches.extend(matches)
+                    confidence_score += confidence_scores.get(weight_category, 0.1)
+        
+        # Normalize confidence score (cap at 1.0)
+        confidence_score = min(confidence_score, 1.0)
+        
+        # Check if confidence meets threshold
+        minimum_confidence = self.ultrathink_config_manager.get_minimum_confidence()
+        
+        if confidence_score >= minimum_confidence and thinking_matches:
+            # Log the ultrathink enhancement
+            await self._log_ultrathink_enhancement(prompt, thinking_matches, confidence_score)
+            
+            # Add the ultrathink directive
+            ultrathink_directive = self.ultrathink_config_manager.get_ultrathink_directive()
+            enhanced_prompt = prompt + ultrathink_directive
+            
+            logger.info(f"Ultrathink mode enabled for prompt with confidence {confidence_score:.2f}")
+            
+            return enhanced_prompt
+        
+        return prompt
+    
+    async def _log_ultrathink_enhancement(self, original_prompt: str, matches: List[str], confidence: float):
+        """Log ultrathink enhancements for analysis and learning."""
+        try:
+            enhancement_data = {
+                'type': 'ultrathink_enhancement',
+                'original_prompt': original_prompt[:200] + '...' if len(original_prompt) > 200 else original_prompt,
+                'matched_patterns': list(set(matches)),  # Remove duplicates
+                'confidence_score': confidence,
+                'timestamp': datetime.now().isoformat(),
+                'enhancement_applied': True
+            }
+            
+            # Add to suggestion history for tracking
+            self.suggestion_history.append(enhancement_data)
+            
+            # Keep only recent history (last 100 entries)
+            if len(self.suggestion_history) > 100:
+                self.suggestion_history = self.suggestion_history[-100:]
+            
+            # Store in memory system if available
+            if hasattr(self.tool_indexer, 'domain_manager'):
+                await self.tool_indexer.domain_manager.store_memory(
+                    memory_type="ultrathink_enhancement",
+                    content=json.dumps(enhancement_data),
+                    importance=0.8,  # High importance for learning patterns
+                    metadata={
+                        "category": "thinking_enhancement",
+                        "enhancement_type": "ultrathink_auto_enable",
+                        "confidence_score": confidence,
+                        "auto_generated": True
+                    }
+                )
+                
+        except Exception as e:
+            logger.error(f"Error logging ultrathink enhancement: {e}")
+    
+    def configure_ultrathink(self, config_updates: Dict[str, Any]) -> None:
+        """
+        Update ultrathink configuration.
+        
+        Args:
+            config_updates: Dictionary of configuration updates
+        """
+        self.ultrathink_config_manager.update_config(config_updates)
+        self.ultrathink_config = self.ultrathink_config_manager.get_config()
+        
+        # Update thinking patterns if custom patterns were changed
+        self.all_thinking_patterns = self.structured_thinking_patterns.copy()
+        custom_patterns = self.ultrathink_config_manager.get_custom_patterns()
+        for custom_pattern in custom_patterns:
+            if isinstance(custom_pattern, dict) and 'pattern' in custom_pattern:
+                self.all_thinking_patterns.append(custom_pattern['pattern'])
+            elif isinstance(custom_pattern, str):
+                self.all_thinking_patterns.append(custom_pattern)
+        
+        logger.info(f"Ultrathink configuration updated: {config_updates}")
+    
+    def get_ultrathink_stats(self) -> Dict[str, Any]:
+        """Get statistics about ultrathink enhancements."""
+        ultrathink_enhancements = [
+            s for s in self.suggestion_history 
+            if s.get('type') == 'ultrathink_enhancement'
+        ]
+        
+        if not ultrathink_enhancements:
+            stats = {
+                'total_enhancements': 0,
+                'average_confidence': 0.0,
+                'most_common_patterns': [],
+                'enhancement_rate': 0.0
+            }
+        else:
+            total_prompts = len(self.suggestion_history)
+            enhancement_count = len(ultrathink_enhancements)
+            
+            # Calculate average confidence
+            avg_confidence = sum(e.get('confidence_score', 0) for e in ultrathink_enhancements) / enhancement_count
+            
+            # Find most common patterns
+            all_patterns = []
+            for enhancement in ultrathink_enhancements:
+                all_patterns.extend(enhancement.get('matched_patterns', []))
+            
+            from collections import Counter
+            pattern_counts = Counter(all_patterns)
+            most_common_patterns = pattern_counts.most_common(5)
+            
+            stats = {
+                'total_enhancements': enhancement_count,
+                'average_confidence': avg_confidence,
+                'most_common_patterns': most_common_patterns,
+                'enhancement_rate': enhancement_count / total_prompts if total_prompts > 0 else 0.0
+            }
+        
+        # Add configuration stats
+        stats['config_stats'] = self.ultrathink_config_manager.get_stats()
+        stats['pattern_counts'] = {
+            'built_in_patterns': len(self.structured_thinking_patterns),
+            'custom_patterns': len(self.ultrathink_config_manager.get_custom_patterns()),
+            'total_patterns': len(self.all_thinking_patterns),
+            'exclusion_patterns': len(self.ultrathink_config_manager.get_exclusion_patterns())
+        }
+        
+        return stats
