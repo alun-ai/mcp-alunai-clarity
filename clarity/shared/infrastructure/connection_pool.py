@@ -413,7 +413,10 @@ async def get_connection_pool(config: Optional[ConnectionConfig] = None) -> Qdra
                 # Use default configuration
                 config = ConnectionConfig()
             
-            _connection_pool = QdrantConnectionPool(config)
+            # For file-based Qdrant, we can only have 1 connection
+            # For remote Qdrant, we can have multiple connections
+            min_conns = 1 if config.path else 2
+            _connection_pool = QdrantConnectionPool(config, min_connections=min_conns)
             
     return _connection_pool
 

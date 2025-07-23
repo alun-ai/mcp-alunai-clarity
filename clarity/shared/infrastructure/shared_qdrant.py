@@ -132,33 +132,22 @@ class SharedQdrantManager:
         raise QdrantConnectionError(f"Could not acquire Qdrant client after {max_wait_time}s")
     
     async def _try_create_client(self, qdrant_path: str, timeout: float, lock_file: Path) -> bool:
-        """Try to create the client with coordination."""
+        """Try to create the client with proper singleton handling."""
         QdrantClientClass = db_deps.QdrantClient
         
         try:
-            # Check if another process already created a client
-            if lock_file.exists():
-                with open(lock_file, 'r') as f:
-                    lock_info = json.load(f)
-                
-                # If lock is recent (within 5 minutes), try to connect to existing
-                import time
-                if time.time() - lock_info.get('created_at', 0) < 300:
-                    logger.debug("Found existing Qdrant coordination, attempting to connect")
-                    
-                    # For local storage, we need to use a different approach
-                    # Try to use the client in read-only mode initially
-                    client = QdrantClientClass(
-                        path=qdrant_path,
-                        timeout=timeout
-                    )
-                    
-                    # Test connection
-                    client.get_collections()
-                    self._client = client
+            # For file-based Qdrant storage, only ONE client instance can exist per path
+            # Don't try to create multiple instances - just create once and reuse
+            if self._client is not None:
+                # Client already exists, test it and return
+                try:
+                    self._client.get_collections()
                     return True
+                except:
+                    # Client is stale, will recreate below
+                    self._client = None
             
-            # Try to create new client and register it
+            # Create the client - there should only ever be one
             client = QdrantClientClass(
                 path=qdrant_path,
                 timeout=timeout
@@ -167,7 +156,7 @@ class SharedQdrantManager:
             # Test the connection
             client.get_collections()
             
-            # Register this client
+            # Register this client instance
             import time
             lock_info = {
                 'pid': os.getpid(),
@@ -183,8 +172,15 @@ class SharedQdrantManager:
             return True
             
         except Exception as e:
-            logger.debug(f"Failed to create client: {e}")
-            return False
+            if "already accessed" in str(e):
+                # This means another client instance is already using this path
+                # For Qdrant file storage, this is not recoverable within the same process
+                logger.error(f"Qdrant storage path {qdrant_path} is locked by another client instance")
+                logger.error("File-based Qdrant storage only supports one client instance per path")
+                raise QdrantConnectionError(f"Qdrant storage already in use: {e}")
+            else:
+                logger.debug(f"Failed to create client: {e}")
+                return False
     
     async def close(self):
         """Close the shared client and cleanup."""

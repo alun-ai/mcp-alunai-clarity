@@ -50,7 +50,7 @@ class UnifiedConnectionConfig:
     # Strategy configuration  
     strategy: Optional[ConnectionStrategy] = None  # Auto-detect if None
     max_connections: int = 10
-    min_connections: int = 2
+    min_connections: int = 1  # File-based Qdrant only supports 1 connection
     
     # Advanced options
     prefer_grpc: bool = True

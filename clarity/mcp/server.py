@@ -55,6 +55,9 @@ class MemoryMcpServer:
         # Quick-start mode flag
         self._quick_start_mode = config.get("quick_start", False)
         
+        # Initialization lock to prevent concurrent initialization
+        self._init_lock = None
+        
         # Initialize AutoCode extensions
         self.autocode_hooks = None
         self.autocode_server = None
@@ -1936,7 +1939,24 @@ class MemoryMcpServer:
     async def _lazy_initialize_domains(self) -> None:
         """Initialize domains lazily when first memory operation is called."""
         logger.info(f"🔍 DEBUG: _lazy_initialize_domains called, _domains_initialized={self._domains_initialized}")
-        if not self._domains_initialized:
+        
+        # Return early if already initialized
+        if self._domains_initialized:
+            return
+        
+        # Initialize lock if needed
+        if self._init_lock is None:
+            import asyncio
+            self._init_lock = asyncio.Lock()
+        
+        # Use lock to prevent concurrent initialization
+        async with self._init_lock:
+            # Double-check pattern: another call might have initialized while we waited
+            if self._domains_initialized:
+                logger.info("🔍 DEBUG: Domains already initialized by another call")
+                return
+            
+            logger.info("🔍 DEBUG: Performing domain initialization under lock")
             logger.info(f"🔍 DEBUG: _quick_start_mode={self._quick_start_mode}")
             if self._quick_start_mode:
                 logger.info("Performing quick-start initialization (essential services only)")
