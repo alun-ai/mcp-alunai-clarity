@@ -1,0 +1,151 @@
+{
+  "overall_avg_ms": 156.3668834595453,
+  "target_compliance_rate": 0.9285714285714286,
+  "operations_meeting_target": "13/14",
+  "performance_distribution": {
+    "Excellent": 13,
+    "Good": 0,
+    "Acceptable": 0,
+    "Slow": 0,
+    "Poor": 1
+  },
+  "slowest_operations": [
+    [
+      "server_discovery",
+      2119.627571105957
+    ],
+    [
+      "complete_discovery_workflow",
+      52.33637491861979
+    ],
+    [
+      "parallel_execution",
+      12.105941772460938
+    ],
+    [
+      "workflow_pattern_retrieval",
+      2.855539321899414
+    ],
+    [
+      "workflow_pattern_storage",
+      1.4287710189819336
+    ]
+  ],
+  "recommendations": [
+    "Investigate and optimize operations taking >1000ms"
+  ],
+  "detailed_results": {
+    "tool_indexer_init": {
+      "avg": 0.14657974243164062,
+      "min": 0.02288818359375,
+      "max": 1.0287761688232422,
+      "median": 0.02586841583251953,
+      "p95": 1.0287761688232422,
+      "success_rate": 1.0
+    },
+    "native_bridge_init": {
+      "avg": 0.0003814697265625,
+      "min": 0.0,
+      "max": 0.0011920928955078125,
+      "median": 0.0,
+      "p95": 0.0011920928955078125,
+      "success_rate": 1.0
+    },
+    "workflow_memory_init": {
+      "avg": 0.0005006790161132812,
+      "min": 0.0,
+      "max": 0.0011920928955078125,
+      "median": 0.000476837158203125,
+      "p95": 0.0011920928955078125,
+      "success_rate": 1.0
+    },
+    "resource_monitor_init": {
+      "avg": 0.008320808410644531,
+      "min": 0.007867813110351562,
+      "max": 0.010013580322265625,
+      "median": 0.008106231689453125,
+      "p95": 0.010013580322265625,
+      "success_rate": 1.0
+    },
+    "server_discovery": {
+      "avg": 2119.627571105957,
+      "min": 0.00095367431640625,
+      "max": 10598.116874694824,
+      "median": 0.0021457672119140625,
+      "p95": 10598.116874694824,
+      "success_rate": 1.0
+    },
+    "resource_opportunity_detection": {
+      "avg": 0.07009506225585938,
+      "min": 0.0438690185546875,
+      "max": 0.3349781036376953,
+      "median": 0.05507469177246094,
+      "p95": 0.3349781036376953,
+      "success_rate": 1.0
+    },
+    "workflow_pattern_storage": {
+      "avg": 1.4287710189819336,
+      "min": 1.238107681274414,
+      "max": 2.833127975463867,
+      "median": 1.265406608581543,
+      "p95": 2.833127975463867,
+      "success_rate": 1.0
+    },
+    "workflow_pattern_retrieval": {
+      "avg": 2.855539321899414,
+      "min": 2.6950836181640625,
+      "max": 2.935171127319336,
+      "median": 2.8640031814575195,
+      "p95": 2.935171127319336,
+      "success_rate": 1.0
+    },
+    "complete_discovery_workflow": {
+      "avg": 52.33637491861979,
+      "min": 52.172183990478516,
+      "max": 52.43396759033203,
+      "median": 52.40297317504883,
+      "p95": 52.43396759033203,
+      "success_rate": 1.0
+    },
+    "resource_suggestions": {
+      "avg": 0.0064055124918619795,
+      "min": 0.0,
+      "max": 0.0820159912109375,
+      "median": 0.00095367431640625,
+      "p95": 0.0820159912109375,
+      "success_rate": 1.0
+    },
+    "workflow_suggestions": {
+      "avg": 0.0016053517659505208,
+      "min": 0.0007152557373046875,
+      "max": 0.007867813110351562,
+      "median": 0.00095367431640625,
+      "p95": 0.007867813110351562,
+      "success_rate": 1.0
+    },
+    "cache_operations": {
+      "avg": 0.0038766860961914062,
+      "min": 0.0016689300537109375,
+      "max": 0.05507469177246094,
+      "median": 0.0030994415283203125,
+      "p95": 0.0050067901611328125,
+      "success_rate": 1.0
+    },
+    "parallel_execution": {
+      "avg": 12.105941772460938,
+      "min": 10.957956314086914,
+      "max": 13.664960861206055,
+      "median": 12.096762657165527,
+      "p95": 13.664960861206055,
+      "success_rate": 1.0
+    },
+    "monitoring_overhead": {
+      "avg": 0.5444049835205078,
+      "min": 0.0019073486328125,
+      "max": 10.809183120727539,
+      "median": 0.0030994415283203125,
+      "p95": 10.809183120727539,
+      "success_rate": 1.0
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "alunai-clarity": {
+      "command": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/venv/bin/python",
+      "args": [
+        "-m", "clarity",
+        "--config", "./.claude/alunai-clarity/config.json",
+        "--memory-file", "./.claude/alunai-clarity/memory.json",
+        "--debug"
+      ],
+      "cwd": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity",
+      "env": {
+        "PYTHONPATH": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity",
+        "MCP_CONFIG_DIR": "./.claude/alunai-clarity",
+        "MEMORY_FILE_PATH": "./.claude/alunai-clarity/memory.json"
+      },
+      "type": "stdio"
+    },
+    "ref": {
+      "command": "npx",
+      "args": [
+        "mcp-remote@0.1.0-0",
+        "https://api.ref.tools/mcp",
+        "--header",
+        "x-ref-api-key: ${REF_API_KEY}"
+      ],
+      "env": {
+        "REF_API_KEY": "${REF_API_KEY}"
+      }
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ],
+      "type": "stdio"
+    }
+  }
+}

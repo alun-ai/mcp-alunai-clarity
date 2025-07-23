@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""CLI script called by Claude Code hooks for MCP analysis.
+
+This script is invoked by Claude Code's hook system to analyze tool usage
+and provide MCP learning and suggestions.
+"""
+
+import asyncio
+import argparse
+import json
+import sys
+import logging
+import os
+from pathlib import Path
+
+# Add the project root to Python path for imports
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+try:
+    from clarity.mcp.hook_integration import MCPHookIntegration
+    from clarity.mcp.tool_indexer import MCPToolIndexer
+    # Mock domain manager for standalone hook testing
+    class MockDomainManager:
+        async def store_memory(self, **kwargs):
+            return "mock_id"
+        async def retrieve_memories(self, **kwargs):
+            return []
+except ImportError as e:
+    # Fallback for when running in isolation
+    print(f"Import error: {e}", file=sys.stderr)
+    sys.exit(0)  # Silent exit to avoid cluttering Claude Code output
+
+# Configure minimal logging for hook context
+logging.basicConfig(level=logging.ERROR, format='%(message)s')
+logger = logging.getLogger(__name__)
+
+
+class HookAnalyzerCLI:
+    """CLI interface for hook-based MCP analysis."""
+    
+    def __init__(self):
+        """Initialize the hook analyzer."""
+        self.hook_integration = None
+        self.manager = None
+        self._initialized = False
+    
+    async def _initialize(self):
+        """Initialize the clarity manager and hook integration."""
+        if self._initialized:
+            return
+        
+        try:
+            # Initialize with mock domain manager for standalone testing
+            mock_domain_manager = MockDomainManager()
+            tool_indexer = MCPToolIndexer(mock_domain_manager)
+            
+            self.hook_integration = MCPHookIntegration(tool_indexer)
+            self._initialized = True
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize hook analyzer: {e}")
+            # Continue with limited functionality
+    
+    async def handle_pre_tool(self, tool_name: str, args: str):
+        """Handle pre-tool execution analysis."""
+        try:
+            await self._initialize()
+            
+            if self.hook_integration:
+                result = await self.hook_integration.analyze_tool_usage('pre_tool', {
+                    'tool_name': tool_name,
+                    'args': args
+                })
+                
+                if result and result.get('suggestions'):
+                    # Output suggestions in a format Claude Code can use
+                    for suggestion in result['suggestions']:
+                        print(f"MCP Suggestion: {suggestion.get('reason', '')}", file=sys.stderr)
+        
+        except Exception as e:
+            logger.debug(f"Pre-tool analysis error: {e}")
+            # Silent failure to avoid disrupting Claude Code
+    
+    async def handle_post_tool(self, tool_name: str, result: str, success: bool):
+        """Handle post-tool execution learning."""
+        try:
+            await self._initialize()
+            
+            if self.hook_integration:
+                await self.hook_integration.analyze_tool_usage('post_tool', {
+                    'tool_name': tool_name,
+                    'result': result,
+                    'success': success
+                })
+        
+        except Exception as e:
+            logger.debug(f"Post-tool analysis error: {e}")
+            # Silent failure
+    
+    async def handle_prompt_submit(self, prompt: str):
+        """Handle prompt submission analysis and enhancement."""
+        try:
+            await self._initialize()
+            
+            if self.hook_integration:
+                enhanced_prompt = await self.hook_integration.analyze_tool_usage('prompt_submit', {
+                    'prompt': prompt
+                })
+                
+                if enhanced_prompt:
+                    # Output modified prompt for Claude Code to use
+                    output = {"modified_prompt": enhanced_prompt}
+                    print(json.dumps(output))
+                    return
+        
+        except Exception as e:
+            logger.debug(f"Prompt analysis error: {e}")
+        
+        # Return original prompt if analysis fails
+        print(json.dumps({"modified_prompt": prompt}))
+
+
+async def main():
+    """Main CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="MCP Hook Analyzer for Claude Code Integration",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    # Event type flags
+    parser.add_argument('--pre-tool', action='store_true',
+                       help='Analyze tool usage before execution')
+    parser.add_argument('--post-tool', action='store_true',
+                       help='Learn from tool execution results')
+    parser.add_argument('--prompt-submit', action='store_true',
+                       help='Analyze and enhance user prompts')
+    
+    # Event data arguments
+    parser.add_argument('--tool', type=str,
+                       help='Tool name being used')
+    parser.add_argument('--args', type=str, default='',
+                       help='Tool arguments')
+    parser.add_argument('--result', type=str, default='',
+                       help='Tool execution result')
+    parser.add_argument('--prompt', type=str, default='',
+                       help='User prompt text')
+    parser.add_argument('--success', type=str, default='true',
+                       help='Whether tool execution was successful')
+    
+    # Utility flags
+    parser.add_argument('--timeout', type=int, default=5,
+                       help='Timeout for analysis in seconds')
+    parser.add_argument('--debug', action='store_true',
+                       help='Enable debug output')
+    
+    args = parser.parse_args()
+    
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+    
+    # Create analyzer instance
+    analyzer = HookAnalyzerCLI()
+    
+    try:
+        # Handle different event types with timeout
+        if args.pre_tool and args.tool:
+            await asyncio.wait_for(
+                analyzer.handle_pre_tool(args.tool, args.args),
+                timeout=args.timeout
+            )
+        
+        elif args.post_tool and args.tool:
+            success = args.success.lower() in ('true', '1', 'yes', 'success')
+            await asyncio.wait_for(
+                analyzer.handle_post_tool(args.tool, args.result, success),
+                timeout=args.timeout
+            )
+        
+        elif args.prompt_submit and args.prompt:
+            await asyncio.wait_for(
+                analyzer.handle_prompt_submit(args.prompt),
+                timeout=args.timeout
+            )
+        
+        else:
+            parser.print_help()
+            sys.exit(1)
+    
+    except asyncio.TimeoutError:
+        logger.debug(f"Analysis timed out after {args.timeout}s")
+        # Exit gracefully without disrupting Claude Code
+        sys.exit(0)
+    
+    except KeyboardInterrupt:
+        logger.debug("Analysis interrupted")
+        sys.exit(0)
+    
+    except Exception as e:
+        logger.debug(f"Analysis failed: {e}")
+        sys.exit(0)  # Silent exit to avoid disrupting Claude Code
+
+
+def cli_main():
+    """Synchronous CLI wrapper for async main."""
+    try:
+        # Handle different Python versions and event loops
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        
+        if loop and loop.is_running():
+            # We're in an existing event loop, create a new thread
+            import threading
+            import concurrent.futures
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(main())
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                future.result(timeout=10)  # 10 second timeout
+        else:
+            # Standard case - run in current thread
+            asyncio.run(main())
+    
+    except Exception as e:
+        logger.debug(f"CLI execution error: {e}")
+        sys.exit(0)
+
+
+if __name__ == "__main__":
+    cli_main()

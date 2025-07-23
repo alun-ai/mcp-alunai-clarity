@@ -113,7 +113,6 @@ Alunai Clarity transforms Claude and other MCP-aware systems by providing **cogn
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "--user", "$(id -u):$(id -g)",
         "-v", "./.claude/alunai-clarity:/app/data",
         "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
@@ -214,7 +213,7 @@ Use the pre-built Docker image from GitHub Container Registry:
         "AUTOCODE_MIN_CONFIDENCE_THRESHOLD",
         "-e",
         "AUTOCODE_SIMILARITY_THRESHOLD",
-        "-e", 
+        "-e",
         "AUTOCODE_STRUCTURED_THINKING_ENABLED",
         "ghcr.io/alun-ai/mcp-alunai-clarity:latest"
       ],
@@ -237,55 +236,6 @@ Use the pre-built Docker image from GitHub Container Registry:
   }
 }
 ```
-
-Alternatively, to build locally:
-
-```bash
-# Clone the repository
-git clone https://github.com/alun-ai/mcp-alunai-clarity.git
-cd mcp-alunai-clarity
-
-# Build the Docker image
-docker build -t mcp-alunai-clarity .
-```
-
-### Option 2: Standard Installation
-
-1. **Prerequisites**:
-   - Python 3.8-3.12
-   - pip package manager
-
-2. **Installation**:
-   ```bash
-   # Clone the repository
-   git clone https://github.com/alun-ai/mcp-alunai-clarity.git
-   cd mcp-alunai-clarity
-
-   # Install dependencies
-   pip install -r requirements.txt
-
-   # Run setup script
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-
-3. **Claude Desktop Integration**:
-
-   Add the following to your Claude Desktop MCP configuration:
-
-   ```json
-   {
-     "mcpServers": {
-       "alunai-clarity": {
-         "command": "python",
-         "args": ["-m", "clarity"],
-         "env": {
-           "MEMORY_FILE_PATH": "./memory.json"
-         }
-       }
-     }
-   }
-   ```
 
 ## Using Memory with Claude
 
@@ -527,7 +477,7 @@ The `examples` directory contains scripts demonstrating how to interact with MCP
 # Claude automatically discovers and suggests:
 💡 **MCP Tools Available:**
 - postgres_query: Execute SQL queries directly
-- playwright_navigate: Automate web browser interactions  
+- playwright_navigate: Automate web browser interactions
 - alunai-memory_store: Store persistent memories
 ```
 

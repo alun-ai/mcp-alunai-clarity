@@ -1,19 +1,38 @@
 """
-Schema validation utilities for the memory MCP server.
+MCP-Enhanced Memory Schema Validation.
+
+This module provides modernized memory schemas with integrated MCP workflow
+patterns and cross-system intelligence. Legacy memory types have been
+deprecated in favor of MCP-aware memory structures.
 """
 
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
+from enum import Enum
 
 from pydantic import BaseModel, Field, field_validator
 
 
+class MCPIntegrationType(str, Enum):
+    """Types of MCP integration for memory entries."""
+    NONE = "none"
+    WORKFLOW_PATTERN = "workflow_pattern"
+    TOOL_CORRELATION = "tool_correlation"
+    RESOURCE_REFERENCE = "resource_reference"
+    THINKING_INTEGRATION = "thinking_integration"
+    CROSS_SYSTEM_INTELLIGENCE = "cross_system_intelligence"
+
+
 class MemoryBase(BaseModel):
-    """Base model for memory objects."""
+    """Enhanced base model for MCP-integrated memory objects."""
     id: str
     type: str
     importance: float = 0.5
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.NONE
+    mcp_context: Optional[Dict[str, Any]] = None
+    workflow_patterns: Optional[List[str]] = None
+    cache_metadata: Optional[Dict[str, Any]] = None
     
     @field_validator("importance")
     @classmethod
@@ -22,203 +41,224 @@ class MemoryBase(BaseModel):
         if not 0.0 <= v <= 1.0:
             raise ValueError("Importance must be between 0.0 and 1.0")
         return v
-
-
-class ConversationMemory(MemoryBase):
-    """Model for conversation memories."""
-    type: str = "conversation"
-    content: Dict[str, Any]
     
-    @field_validator("content")
+    @field_validator("workflow_patterns")
     @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate conversation content."""
-        if "role" not in v and "messages" not in v:
-            raise ValueError("Conversation must have either 'role' or 'messages'")
-        
-        if "role" in v and "message" not in v:
-            raise ValueError("Conversation with 'role' must have 'message'")
-            
-        if "messages" in v and not isinstance(v["messages"], list):
-            raise ValueError("Conversation 'messages' must be a list")
-            
+    def validate_workflow_patterns(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate workflow pattern references."""
+        if v is not None:
+            for pattern in v:
+                if not isinstance(pattern, str) or not pattern:
+                    raise ValueError("Workflow patterns must be non-empty strings")
         return v
 
 
-class FactMemory(MemoryBase):
-    """Model for fact memories."""
-    type: str = "fact"
+class MCPThinkingWorkflowMemory(MemoryBase):
+    """MCP-enhanced memory for structured thinking workflows."""
+    type: str = "mcp_thinking_workflow"
     content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.THINKING_INTEGRATION
     
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate fact content."""
-        if "fact" not in v:
-            raise ValueError("Fact must have 'fact' field")
-            
-        if "confidence" in v and not 0.0 <= v["confidence"] <= 1.0:
-            raise ValueError("Fact confidence must be between 0.0 and 1.0")
-            
-        return v
-
-
-class DocumentMemory(MemoryBase):
-    """Model for document memories."""
-    type: str = "document"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate document content."""
-        if "title" not in v or "text" not in v:
-            raise ValueError("Document must have 'title' and 'text' fields")
-            
-        return v
-
-
-class EntityMemory(MemoryBase):
-    """Model for entity memories."""
-    type: str = "entity"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate entity content."""
-        if "name" not in v or "entity_type" not in v:
-            raise ValueError("Entity must have 'name' and 'entity_type' fields")
-            
-        return v
-
-
-class ReflectionMemory(MemoryBase):
-    """Model for reflection memories."""
-    type: str = "reflection"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate reflection content."""
-        if "subject" not in v or "reflection" not in v:
-            raise ValueError("Reflection must have 'subject' and 'reflection' fields")
-            
-        return v
-
-
-class CodeMemory(MemoryBase):
-    """Model for code memories."""
-    type: str = "code"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate code content."""
-        if "language" not in v or "code" not in v:
-            raise ValueError("Code must have 'language' and 'code' fields")
-            
-        return v
-
-
-class ProjectPatternMemory(MemoryBase):
-    """Model for project architectural patterns."""
-    type: str = "project_pattern"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate project pattern content."""
-        required_fields = ["pattern_type", "framework", "language", "structure"]
+        """Validate MCP thinking workflow content."""
+        required_fields = ["session_id", "thinking_stage", "workflow_pattern", "tool_context"]
         for field in required_fields:
             if field not in v:
-                raise ValueError(f"Project pattern must have '{field}' field")
-        return v
-
-
-class CommandPatternMemory(MemoryBase):
-    """Model for bash command patterns and success rates."""
-    type: str = "command_pattern"
-    content: Dict[str, Any]
-    
-    @field_validator("content")
-    @classmethod
-    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate command pattern content."""
-        required_fields = ["command", "context", "success_rate", "platform"]
-        for field in required_fields:
-            if field not in v:
-                raise ValueError(f"Command pattern must have '{field}' field")
+                raise ValueError(f"MCP thinking workflow must have '{field}' field")
         
-        # Validate success_rate is between 0 and 1
-        if not 0.0 <= v["success_rate"] <= 1.0:
-            raise ValueError("Command success_rate must be between 0.0 and 1.0")
+        # Validate thinking stage
+        valid_stages = ["problem_definition", "research", "analysis", "synthesis", "conclusion", "mcp_integration"]
+        if v["thinking_stage"] not in valid_stages:
+            raise ValueError(f"Thinking stage must be one of: {valid_stages}")
+        
+        # Validate workflow pattern structure
+        workflow = v["workflow_pattern"]
+        if not isinstance(workflow, dict) or "trigger_context" not in workflow:
+            raise ValueError("Workflow pattern must be dict with 'trigger_context'")
+        
+        # Validate tool context
+        tool_context = v["tool_context"]
+        if not isinstance(tool_context, dict):
+            raise ValueError("Tool context must be a dictionary")
             
         return v
 
 
-class SessionSummaryMemory(MemoryBase):
-    """Model for session summaries and completed work."""
-    type: str = "session_summary"
+class MCPResourcePatternMemory(MemoryBase):
+    """MCP-enhanced memory for resource patterns and references."""
+    type: str = "mcp_resource_pattern"
     content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.RESOURCE_REFERENCE
     
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate session summary content."""
-        required_fields = ["session_id", "tasks_completed", "patterns_used", "files_modified"]
+        """Validate MCP resource pattern content."""
+        required_fields = ["resource_reference", "access_pattern", "success_metrics", "mcp_server_context"]
         for field in required_fields:
             if field not in v:
-                raise ValueError(f"Session summary must have '{field}' field")
+                raise ValueError(f"MCP resource pattern must have '{field}' field")
         
-        # Validate that lists are actually lists
-        list_fields = ["tasks_completed", "patterns_used", "files_modified"]
-        for field in list_fields:
-            if not isinstance(v[field], list):
-                raise ValueError(f"Session summary '{field}' must be a list")
-                
+        # Validate resource reference format
+        resource_ref = v["resource_reference"]
+        if not isinstance(resource_ref, str) or not resource_ref.startswith("@memory:"):
+            raise ValueError("Resource reference must start with '@memory:'")
+        
+        # Validate success metrics
+        success_metrics = v["success_metrics"]
+        if not isinstance(success_metrics, dict) or "effectiveness_score" not in success_metrics:
+            raise ValueError("Success metrics must be dict with 'effectiveness_score'")
+        
+        if not 0.0 <= success_metrics["effectiveness_score"] <= 1.0:
+            raise ValueError("Effectiveness score must be between 0.0 and 1.0")
+            
         return v
 
 
-class BashExecutionMemory(MemoryBase):
-    """Model for individual bash command executions."""
-    type: str = "bash_execution"
+class ThinkingMCPIntegrationMemory(MemoryBase):
+    """Memory for cross-system thinking integration with MCP."""
+    type: str = "thinking_mcp_integration"
     content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.CROSS_SYSTEM_INTELLIGENCE
     
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate bash execution content."""
-        required_fields = ["command", "exit_code", "timestamp", "context"]
+        """Validate thinking MCP integration content."""
+        required_fields = ["integration_type", "correlation_data", "performance_impact", "usage_context"]
         for field in required_fields:
             if field not in v:
-                raise ValueError(f"Bash execution must have '{field}' field")
+                raise ValueError(f"Thinking MCP integration must have '{field}' field")
         
-        # Validate exit_code is an integer
-        if not isinstance(v["exit_code"], int):
-            raise ValueError("Bash execution exit_code must be an integer")
-            
-        # Validate timestamp format
-        if not validate_iso_timestamp(v["timestamp"]):
-            raise ValueError("Bash execution timestamp must be valid ISO format")
+        # Validate integration type
+        valid_types = ["cache_intelligence", "workflow_correlation", "real_time_enhancement", "pattern_discovery"]
+        if v["integration_type"] not in valid_types:
+            raise ValueError(f"Integration type must be one of: {valid_types}")
+        
+        # Validate correlation data
+        correlation = v["correlation_data"]
+        if not isinstance(correlation, dict) or "correlation_strength" not in correlation:
+            raise ValueError("Correlation data must be dict with 'correlation_strength'")
+        
+        if not 0.0 <= correlation["correlation_strength"] <= 1.0:
+            raise ValueError("Correlation strength must be between 0.0 and 1.0")
             
         return v
 
 
-# Structured Thinking Memory Types from Sequential Thinking Integration
+class MCPToolCorrelationMemory(MemoryBase):
+    """Memory for correlations between tools and thinking patterns."""
+    type: str = "mcp_tool_correlation"
+    content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.TOOL_CORRELATION
+    
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate MCP tool correlation content."""
+        required_fields = ["tool_name", "thinking_context", "correlation_patterns", "effectiveness_data"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"MCP tool correlation must have '{field}' field")
+        
+        # Validate tool name
+        if not isinstance(v["tool_name"], str) or not v["tool_name"]:
+            raise ValueError("Tool name must be non-empty string")
+        
+        # Validate correlation patterns
+        patterns = v["correlation_patterns"]
+        if not isinstance(patterns, list) or not patterns:
+            raise ValueError("Correlation patterns must be non-empty list")
+        
+        # Validate effectiveness data
+        effectiveness = v["effectiveness_data"]
+        if not isinstance(effectiveness, dict) or "success_rate" not in effectiveness:
+            raise ValueError("Effectiveness data must be dict with 'success_rate'")
+            
+        return v
+
+
+class MCPWorkflowPatternMemory(MemoryBase):
+    """Memory for MCP workflow patterns and their effectiveness."""
+    type: str = "mcp_workflow_pattern"
+    content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.WORKFLOW_PATTERN
+    
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate MCP workflow pattern content."""
+        required_fields = ["pattern_id", "trigger_context", "tool_sequence", "success_metrics", "context_conditions"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"MCP workflow pattern must have '{field}' field")
+        
+        # Validate tool sequence
+        tool_sequence = v["tool_sequence"]
+        if not isinstance(tool_sequence, list) or not tool_sequence:
+            raise ValueError("Tool sequence must be non-empty list")
+        
+        # Validate success metrics
+        success_metrics = v["success_metrics"]
+        required_metrics = ["completion_rate", "average_duration", "user_satisfaction"]
+        for metric in required_metrics:
+            if metric not in success_metrics:
+                raise ValueError(f"Success metrics must include '{metric}'")
+            
+        return v
+
+
+class EnhancedContextMemory(MemoryBase):
+    """Enhanced contextual memory with MCP awareness."""
+    type: str = "enhanced_context"
+    content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.CROSS_SYSTEM_INTELLIGENCE
+    
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+        """Validate enhanced context content."""
+        required_fields = ["context_type", "primary_content", "mcp_correlations", "temporal_context"]
+        for field in required_fields:
+            if field not in v:
+                raise ValueError(f"Enhanced context must have '{field}' field")
+        
+        # Validate context type
+        valid_types = ["conversation", "code", "document", "reflection", "problem_solving", "decision_making"]
+        if v["context_type"] not in valid_types:
+            raise ValueError(f"Context type must be one of: {valid_types}")
+        
+        # Validate MCP correlations
+        correlations = v["mcp_correlations"]
+        if not isinstance(correlations, dict):
+            raise ValueError("MCP correlations must be a dictionary")
+            
+        return v
+
+
+# Legacy types removed - use MCP-enhanced equivalents
+
+
+
+
+
+
+
+
+# MCP-Enhanced Structured Thinking Memory Types
 class StructuredThinkingMemory(MemoryBase):
-    """Model for complete structured thinking processes."""
+    """Enhanced structured thinking processes with MCP integration."""
     type: str = "structured_thinking"
     content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.THINKING_INTEGRATION
     
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate structured thinking content."""
-        required_fields = ["session_id", "session_title", "total_thoughts", "stages_completed"]
+        """Validate MCP-enhanced structured thinking content."""
+        required_fields = ["session_id", "session_title", "total_thoughts", "stages_completed", "mcp_workflows"]
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"Structured thinking must have '{field}' field")
@@ -226,20 +266,26 @@ class StructuredThinkingMemory(MemoryBase):
         # Validate stages_completed is a list
         if not isinstance(v["stages_completed"], list):
             raise ValueError("Structured thinking 'stages_completed' must be a list")
+        
+        # Validate MCP workflows integration
+        mcp_workflows = v["mcp_workflows"]
+        if not isinstance(mcp_workflows, dict):
+            raise ValueError("MCP workflows must be a dictionary")
             
         return v
 
 
 class ThoughtProcessMemory(MemoryBase):
-    """Model for individual thoughts with stage metadata."""
-    type: str = "thought_process" 
+    """Enhanced individual thoughts with MCP context and stage metadata."""
+    type: str = "thought_process"
     content: Dict[str, Any]
+    mcp_integration: MCPIntegrationType = MCPIntegrationType.THINKING_INTEGRATION
     
     @field_validator("content")
     @classmethod
     def validate_content(cls, v: Dict[str, Any]) -> Dict[str, Any]:
-        """Validate thought process content."""
-        required_fields = ["thought_number", "thinking_stage", "thought_content"]
+        """Validate MCP-enhanced thought process content."""
+        required_fields = ["thought_number", "thinking_stage", "thought_content", "mcp_tool_context"]
         for field in required_fields:
             if field not in v:
                 raise ValueError(f"Thought process must have '{field}' field")
@@ -248,10 +294,15 @@ class ThoughtProcessMemory(MemoryBase):
         if not isinstance(v["thought_number"], int) or v["thought_number"] <= 0:
             raise ValueError("Thought process 'thought_number' must be a positive integer")
             
-        # Validate thinking_stage is valid
-        valid_stages = ["problem_definition", "research", "analysis", "synthesis", "conclusion"]
+        # Validate thinking_stage is valid (extended for MCP)
+        valid_stages = ["problem_definition", "research", "analysis", "synthesis", "conclusion", "mcp_integration", "tool_selection"]
         if v["thinking_stage"] not in valid_stages:
             raise ValueError(f"Thought process 'thinking_stage' must be one of: {valid_stages}")
+        
+        # Validate MCP tool context
+        mcp_context = v["mcp_tool_context"]
+        if not isinstance(mcp_context, dict):
+            raise ValueError("MCP tool context must be a dictionary")
             
         return v
 
@@ -382,55 +433,81 @@ class ConclusionSummaryMemory(MemoryBase):
         return v
 
 
-# Memory type configuration for structured thinking
-STRUCTURED_THINKING_MEMORY_TYPES = {
-    "structured_thinking": {
-        "description": "Complete structured thinking process",
+# MCP-Enhanced Memory Type Configuration
+MCP_ENHANCED_MEMORY_TYPES = {
+    # Core MCP Integration Types
+    "mcp_thinking_workflow": {
+        "description": "MCP-enhanced structured thinking workflows",
         "tier": "core",
         "retention_days": 365,
-        "requires_embedding": True
+        "requires_embedding": True,
+        "mcp_integration": "thinking_integration",
+        "cache_enabled": True
+    },
+    "mcp_resource_pattern": {
+        "description": "MCP resource patterns and references",
+        "tier": "core",
+        "retention_days": 180,
+        "requires_embedding": True,
+        "mcp_integration": "resource_reference",
+        "cache_enabled": True
+    },
+    "thinking_mcp_integration": {
+        "description": "Cross-system thinking integration",
+        "tier": "core",
+        "retention_days": 365,
+        "requires_embedding": True,
+        "mcp_integration": "cross_system_intelligence",
+        "cache_enabled": True
+    },
+    "mcp_tool_correlation": {
+        "description": "Tool and thinking pattern correlations",
+        "tier": "supplementary",
+        "retention_days": 180,
+        "requires_embedding": True,
+        "mcp_integration": "tool_correlation",
+        "cache_enabled": True
+    },
+    "mcp_workflow_pattern": {
+        "description": "MCP workflow patterns and effectiveness",
+        "tier": "core",
+        "retention_days": 365,
+        "requires_embedding": True,
+        "mcp_integration": "workflow_pattern",
+        "cache_enabled": True
+    },
+    "enhanced_context": {
+        "description": "Enhanced contextual memory with MCP awareness",
+        "tier": "core",
+        "retention_days": 180,
+        "requires_embedding": True,
+        "mcp_integration": "cross_system_intelligence",
+        "cache_enabled": True
+    },
+    # Enhanced Structured Thinking Types  
+    "structured_thinking": {
+        "description": "MCP-enhanced structured thinking process",
+        "tier": "core",
+        "retention_days": 365,
+        "requires_embedding": True,
+        "mcp_integration": "thinking_integration",
+        "cache_enabled": True
     },
     "thought_process": {
-        "description": "Individual thought with stage metadata",
-        "tier": "core", 
+        "description": "MCP-enhanced individual thought with context",
+        "tier": "core",
         "retention_days": 180,
-        "requires_embedding": True
+        "requires_embedding": True,
+        "mcp_integration": "thinking_integration",
+        "cache_enabled": False
     },
     "thinking_relationship": {
-        "description": "Relationships between thoughts",
+        "description": "Enhanced relationships between thoughts",
         "tier": "supplementary",
         "retention_days": 90,
-        "requires_embedding": False
-    },
-    "problem_analysis": {
-        "description": "Problem definition stage thoughts",
-        "tier": "core",
-        "retention_days": 365,
-        "requires_embedding": True
-    },
-    "research_notes": {
-        "description": "Research stage findings",
-        "tier": "core",
-        "retention_days": 180,
-        "requires_embedding": True
-    },
-    "analysis_result": {
-        "description": "Analysis stage conclusions",
-        "tier": "core",
-        "retention_days": 365,
-        "requires_embedding": True
-    },
-    "solution_synthesis": {
-        "description": "Synthesis stage solutions",
-        "tier": "core",
-        "retention_days": 365,
-        "requires_embedding": True
-    },
-    "conclusion_summary": {
-        "description": "Final conclusions and decisions",
-        "tier": "core",
-        "retention_days": 365,
-        "requires_embedding": True
+        "requires_embedding": False,
+        "mcp_integration": "thinking_integration",
+        "cache_enabled": False
     }
 }
 
@@ -453,22 +530,20 @@ def validate_memory(memory: Dict[str, Any]) -> Dict[str, Any]:
         
     memory_type = memory["type"]
     
-    # Choose validator based on type
+    # MCP-Enhanced Memory Validators
     validators = {
-        "conversation": ConversationMemory,
-        "fact": FactMemory,
-        "document": DocumentMemory,
-        "entity": EntityMemory,
-        "reflection": ReflectionMemory,
-        "code": CodeMemory,
-        "project_pattern": ProjectPatternMemory,
-        "command_pattern": CommandPatternMemory,
-        "session_summary": SessionSummaryMemory,
-        "bash_execution": BashExecutionMemory,
-        # Structured thinking memory types
+        # Core MCP Integration Types
+        "mcp_thinking_workflow": MCPThinkingWorkflowMemory,
+        "mcp_resource_pattern": MCPResourcePatternMemory,
+        "thinking_mcp_integration": ThinkingMCPIntegrationMemory,
+        "mcp_tool_correlation": MCPToolCorrelationMemory,
+        "mcp_workflow_pattern": MCPWorkflowPatternMemory,
+        "enhanced_context": EnhancedContextMemory,
+        # Enhanced structured thinking types
         "structured_thinking": StructuredThinkingMemory,
         "thought_process": ThoughtProcessMemory,
         "thinking_relationship": ThinkingRelationshipMemory,
+        # Remaining compatible thinking types (modernized)
         "problem_analysis": ProblemAnalysisMemory,
         "research_notes": ResearchNotesMemory,
         "analysis_result": AnalysisResultMemory,
@@ -516,3 +591,48 @@ def validate_memory_id(memory_id: str) -> bool:
     # Memory IDs should start with "mem_" followed by alphanumeric chars
     pattern = r"^mem_[a-zA-Z0-9_-]+$"
     return bool(re.match(pattern, memory_id))
+
+
+def get_mcp_memory_types() -> Dict[str, Dict[str, Any]]:
+    """
+    Get MCP-enhanced memory type configuration.
+    
+    Returns:
+        Dictionary of memory type configurations with MCP integration
+    """
+    return MCP_ENHANCED_MEMORY_TYPES
+
+
+def is_mcp_integrated_type(memory_type: str) -> bool:
+    """
+    Check if a memory type has MCP integration enabled.
+    
+    Args:
+        memory_type: Memory type string
+        
+    Returns:
+        True if memory type has MCP integration
+    """
+    config = MCP_ENHANCED_MEMORY_TYPES.get(memory_type, {})
+    mcp_integration = config.get("mcp_integration", "none")
+    
+    # Check if it's an MCP-enhanced type or has explicit MCP integration
+    return (mcp_integration != "none" and mcp_integration is not None) or memory_type.startswith("mcp_")
+
+
+def get_memory_cache_config(memory_type: str) -> bool:
+    """
+    Check if a memory type should use caching.
+    
+    Args:
+        memory_type: Memory type string
+        
+    Returns:
+        True if caching is enabled for this memory type
+    """
+    config = MCP_ENHANCED_MEMORY_TYPES.get(memory_type, {})
+    return config.get("cache_enabled", False)
+
+
+# Backwards compatibility - deprecated, will be removed
+STRUCTURED_THINKING_MEMORY_TYPES = MCP_ENHANCED_MEMORY_TYPES  # Deprecated alias

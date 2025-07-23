@@ -187,3 +187,34 @@ validate_*.py
 debug_*.py
 simple_*.py
 fix_*.py
+
+# New project-specific exclusions
+ALPHA_DEPLOYMENT_GUIDE.md
+CONTEXT_COMPREHENSIVE_TESTING_SESSION.md
+COMPREHENSIVE_TESTING_IMPLEMENTATION.md
+
+# Local development directory
+local-dev/
+
+# Generated Python package info
+*.egg-info/
+
+# Test Qdrant data
+test_qdrant/
+
+# Additional example files
+examples/
+
+# VS Code workspace files
+*.code-workspace
+
+# Development MCP config files
+.mcp.json-dev
+mcp-config-dev.json
+
+# Additional documentation
+CLAUDE.md
+CHANGELOG.md
+
+# Development scripts in root
+setup.sh

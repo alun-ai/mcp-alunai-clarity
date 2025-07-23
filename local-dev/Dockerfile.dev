@@ -1,0 +1,97 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    g++ \
+    gosu \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements.txt pyproject.toml ./
+RUN pip install --no-warn-script-location -r requirements.txt
+
+# Development environment setup
+ENV PATH=/usr/local/bin:$PATH
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+
+# Qdrant data directory
+ENV QDRANT_DATA_PATH=/app/data/qdrant
+ENV MEMORY_CONFIG_PATH=/app/data/config.json
+
+# Create data directories with proper permissions
+RUN mkdir -p /app/data/qdrant /app/data/backups /app/data/cache
+
+# Create default configuration for server mode
+RUN echo '{\
+  "qdrant": {\
+    "url": "http://qdrant-server:6333",\
+    "index_params": {\
+      "m": 16,\
+      "ef_construct": 200,\
+      "full_scan_threshold": 10000\
+    }\
+  },\
+  "embedding": {\
+    "default_model": "sentence-transformers/all-MiniLM-L6-v2",\
+    "dimensions": 384,\
+    "cache_dir": "/app/data/cache"\
+  },\
+  "alunai-clarity": {\
+    "max_short_term_items": 1000,\
+    "max_long_term_items": 10000,\
+    "max_archival_items": 100000\
+  }\
+}' > /app/data/default_config.json
+
+# Volume for persistent data
+VOLUME ["/app/data"]
+
+# Create development entrypoint script in /usr/local/bin to avoid volume mount conflicts
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+# Development mode with verbose logging\n\
+export PYTHONUNBUFFERED=1\n\
+export CLARITY_LOG_LEVEL=DEBUG\n\
+export CLARITY_DEBUG_MODE=true\n\
+\n\
+# Fix permissions for mounted volume\n\
+if [ -d "/app/data" ]; then\n\
+    HOST_UID=$(stat -c %u /app/data 2>/dev/null || echo 1000)\n\
+    HOST_GID=$(stat -c %g /app/data 2>/dev/null || echo 1000)\n\
+    \n\
+    # Create user if needed\n\
+    if ! id -u dev-user >/dev/null 2>&1; then\n\
+        groupadd -g $HOST_GID dev-group 2>/dev/null || true\n\
+        useradd -u $HOST_UID -g $HOST_GID -s /bin/bash dev-user 2>/dev/null || true\n\
+    fi\n\
+    \n\
+    # Ensure data directory permissions\n\
+    chown -R $HOST_UID:$HOST_GID /app/data\n\
+fi\n\
+\n\
+# Copy default config if none exists\n\
+if [ ! -f "/app/data/config.json" ]; then\
+    cp /app/data/default_config.json /app/data/config.json\n\
+    chown $HOST_UID:$HOST_GID /app/data/config.json 2>/dev/null || true\n\
+fi\n\
+\n\
+echo "Starting Alunai Clarity MCP Server in development mode..."\n\
+echo "Code is mounted from host - changes will be reflected immediately"\n\
+echo "Data persisted in: /app/data"\n\
+echo "Config file: /app/data/config.json"\n\
+echo "Debug mode: $CLARITY_DEBUG_MODE"\n\
+echo "Log level: $CLARITY_LOG_LEVEL"\n\
+\n\
+# Run the MCP server\n\
+if [ "$HOST_UID" != "0" ] && [ "$HOST_GID" != "0" ]; then\n\
+    exec gosu dev-user python -m clarity "$@"\n\
+else\n\
+    exec python -m clarity "$@"\n\
+fi\n' > /usr/local/bin/entrypoint-dev.sh && chmod +x /usr/local/bin/entrypoint-dev.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint-dev.sh"]
