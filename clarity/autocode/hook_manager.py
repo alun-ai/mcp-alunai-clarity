@@ -139,6 +139,10 @@ class HookManager:
             self.register_event_hook("mcp_context_change", self._on_mcp_context_change)
             self.register_event_hook("error_occurred", self._on_mcp_error_occurred)
             
+            # Claude Code hooks integration (new in v1.0.59)
+            self.register_event_hook("claude_user_prompt_submit", self._on_claude_user_prompt_submit)
+            self.register_event_hook("claude_permission_decision", self._on_claude_permission_decision)
+            
             logger.info("Default AutoCode hooks registered successfully")
             
         except (AttributeError, ImportError, RuntimeError) as e:
@@ -1309,6 +1313,93 @@ class HookManager:
         except Exception as e:
             logger.error(f"Error in MCP error occurred hook: {e}")
     
+    # Claude Code hooks integration (v1.0.59+)
+    async def _on_claude_user_prompt_submit(self, context: Dict[str, Any]) -> None:
+        """
+        Enhanced UserPromptSubmit hook with intelligent memory injection.
+        
+        This hook intercepts user prompts before Claude processes them and:
+        1. Analyzes prompt for memory-worthy patterns
+        2. Injects relevant contextual memories
+        3. Schedules post-response memory capture if needed
+        """
+        try:
+            data = context.get("data", {})
+            user_prompt = data.get("prompt", "")
+            session_id = data.get("session_id")
+            transcript_path = data.get("transcript_path")
+            cwd = data.get("cwd")
+            
+            if not user_prompt or len(user_prompt.strip()) < 10:
+                return
+                
+            logger.info(f"AutoCode: Processing Claude UserPromptSubmit for session {session_id}")
+            
+            # Analyze prompt for memory relevance and patterns
+            memory_analysis = await self._analyze_prompt_for_memory_context(
+                user_prompt, session_id, cwd
+            )
+            
+            # Inject relevant memories if beneficial
+            if memory_analysis.get("should_inject_context", False):
+                await self._inject_contextual_memories(
+                    user_prompt, session_id, memory_analysis
+                )
+            
+            # Schedule automatic capture for promising content
+            if memory_analysis.get("should_schedule_capture", False):
+                await self._schedule_post_response_capture(
+                    user_prompt, session_id, memory_analysis
+                )
+                
+            # Update session tracking
+            await self._update_session_context(session_id, {
+                "last_prompt": user_prompt[:100],
+                "memory_analysis": memory_analysis,
+                "cwd": cwd,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"Error in Claude UserPromptSubmit hook: {e}")
+
+    async def _on_claude_permission_decision(self, context: Dict[str, Any]) -> None:
+        """
+        Hook for Claude Code permission decisions.
+        
+        Captures context when users grant or deny tool permissions,
+        learning workflow patterns and tool usage preferences.
+        """
+        try:
+            data = context.get("data", {})
+            tool_name = data.get("tool_name", "")
+            decision = data.get("decision", "")  # "allow", "deny", "ask"
+            session_id = data.get("session_id")
+            prompt_context = data.get("prompt_context", "")
+            
+            if not tool_name or not decision:
+                return
+                
+            logger.info(f"AutoCode: Processing permission decision - {tool_name}: {decision}")
+            
+            # Store permission decision pattern
+            await self._capture_permission_pattern({
+                "tool_name": tool_name,
+                "decision": decision,
+                "session_id": session_id,
+                "prompt_context": prompt_context[:200],
+                "timestamp": datetime.utcnow().isoformat()
+            })
+            
+            # If user granted permission, capture the context that led to this decision
+            if decision == "allow" and prompt_context:
+                await self._capture_tool_usage_context(
+                    tool_name, prompt_context, session_id
+                )
+                
+        except Exception as e:
+            logger.error(f"Error in Claude permission decision hook: {e}")
+    
     # Structured thinking hooks and detection methods
     async def _on_structured_thought_process(self, context: Dict[str, Any]) -> None:
         """Hook for structured thought processing."""
@@ -1710,6 +1801,221 @@ class HookManager:
         except Exception as e:
             logger.error(f"Error getting enhanced thinking suggestions: {e}")
             return {"error": f"Failed to get suggestions: {e}"}
+
+    # Claude Code hooks supporting methods
+    async def _analyze_prompt_for_memory_context(
+        self, 
+        prompt: str, 
+        session_id: str, 
+        cwd: str
+    ) -> Dict[str, Any]:
+        """Analyze prompt for memory injection and capture opportunities."""
+        
+        import re
+        
+        analysis = {
+            "should_inject_context": False,
+            "should_schedule_capture": False,
+            "memory_patterns": [],
+            "context_relevance": 0.0,
+            "capture_confidence": 0.0
+        }
+        
+        # Enhanced pattern detection beyond basic "Remember this:"
+        enhanced_patterns = {
+            # Explicit memory requests
+            "explicit_memory": [
+                r"remember\s+(?:this|that)\s*:?\s*(.+)",
+                r"(?:please\s+)?(?:note|record|save)\s+(?:this|that)\s*:?\s*(.+)",
+                r"(?:i\s+)?(?:want|need)\s+(?:you\s+)?to\s+remember\s*(.+)",
+            ],
+            
+            # Learning and preference expressions
+            "preference_learning": [
+                r"i\s+(?:like|prefer|enjoy|love|hate|dislike)\s+(.+)",
+                r"my\s+(?:favorite|preferred)\s+(.+)",
+                r"i\s+(?:always|usually|often|never)\s+(.+)",
+                r"i\s+tend\s+to\s+(.+)",
+            ],
+            
+            # Important decisions and solutions
+            "solution_capture": [
+                r"(?:the\s+)?(?:solution|fix|answer)\s+(?:is|was)\s+(.+)",
+                r"(?:this\s+)?(?:worked|fixed|solved)\s+(?:the\s+)?(?:issue|problem)\s*:?\s*(.+)",
+                r"(?:i\s+)?(?:decided|chose)\s+to\s+(.+)",
+            ],
+            
+            # Context-seeking patterns (good for memory injection)
+            "context_seeking": [
+                r"(?:what|how)\s+(?:did|do)\s+i\s+(.+)",
+                r"(?:remind|tell)\s+me\s+about\s+(.+)",
+                r"what\s+was\s+(?:the|my)\s+(.+)",
+                r"how\s+(?:did|do)\s+we\s+(.+)",
+            ]
+        }
+        
+        # Check for patterns
+        for pattern_type, patterns in enhanced_patterns.items():
+            for pattern in patterns:
+                matches = re.findall(pattern, prompt, re.IGNORECASE | re.MULTILINE)
+                if matches:
+                    analysis["memory_patterns"].append({
+                        "type": pattern_type,
+                        "matches": matches,
+                        "pattern": pattern
+                    })
+        
+        # Determine actions based on patterns
+        if analysis["memory_patterns"]:
+            explicit_patterns = ["explicit_memory", "preference_learning", "solution_capture"]
+            context_patterns = ["context_seeking"]
+            
+            has_explicit = any(p["type"] in explicit_patterns for p in analysis["memory_patterns"])
+            has_context_seeking = any(p["type"] in context_patterns for p in analysis["memory_patterns"])
+            
+            if has_explicit:
+                analysis["should_schedule_capture"] = True
+                analysis["capture_confidence"] = 0.9
+            
+            if has_context_seeking and self.domain_manager:
+                # Check if we have relevant memories to inject
+                try:
+                    # Quick memory search to see if we have relevant content
+                    memories = await self.domain_manager.retrieve_memories(
+                        query=prompt[:200],
+                        limit=3,
+                        min_similarity=0.7
+                    )
+                    if memories:
+                        analysis["should_inject_context"] = True
+                        analysis["context_relevance"] = 0.8
+                except Exception as e:
+                    logger.debug(f"Error checking for relevant memories: {e}")
+        
+        return analysis
+
+    async def _inject_contextual_memories(
+        self, 
+        user_prompt: str, 
+        session_id: str, 
+        memory_analysis: Dict[str, Any]
+    ) -> None:
+        """Inject relevant memories as context before Claude processes the prompt."""
+        try:
+            if not self.domain_manager:
+                return
+                
+            # Retrieve relevant memories
+            memories = await self.domain_manager.retrieve_memories(
+                query=user_prompt[:200],
+                limit=3,
+                min_similarity=0.7
+            )
+            
+            if memories:
+                # Format memory context for injection
+                context_lines = ["📝 **Relevant Context from Memory:**"]
+                for memory in memories:
+                    context_lines.append(f"- {memory.get('content', '')[:100]}...")
+                
+                context_injection = "\n".join(context_lines)
+                
+                # Output context injection via stdout (Claude Code will capture this)
+                print(f"\n{context_injection}\n")
+                
+                logger.info(f"Injected {len(memories)} memories as context for session {session_id}")
+                
+        except Exception as e:
+            logger.error(f"Error injecting contextual memories: {e}")
+
+    async def _schedule_post_response_capture(
+        self, 
+        user_prompt: str, 
+        session_id: str, 
+        memory_analysis: Dict[str, Any]
+    ) -> None:
+        """Schedule automatic memory capture after Claude's response."""
+        try:
+            # Store scheduled capture info for post-processing
+            if not hasattr(self, '_scheduled_captures'):
+                self._scheduled_captures = {}
+                
+            self._scheduled_captures[session_id] = {
+                "user_prompt": user_prompt,
+                "analysis": memory_analysis,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            
+            logger.info(f"Scheduled post-response capture for session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error scheduling post-response capture: {e}")
+
+    async def _update_session_context(self, session_id: str, context: Dict[str, Any]) -> None:
+        """Update session context tracking."""
+        try:
+            if not hasattr(self, '_session_contexts'):
+                self._session_contexts = {}
+                
+            self._session_contexts[session_id] = context
+            logger.debug(f"Updated session context for {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error updating session context: {e}")
+
+    async def _capture_permission_pattern(self, pattern_data: Dict[str, Any]) -> None:
+        """Capture permission decision patterns for workflow learning."""
+        try:
+            if not self.domain_manager:
+                return
+                
+            # Store permission pattern as a memory
+            await self.domain_manager.store_memory(
+                memory_type="permission_pattern",
+                content=f"Permission decision: {pattern_data['tool_name']} -> {pattern_data['decision']}",
+                importance=0.6,
+                metadata={
+                    "pattern_type": "permission_decision",
+                    "tool_name": pattern_data['tool_name'],
+                    "decision": pattern_data['decision'],
+                    "session_id": pattern_data.get('session_id'),
+                    "context": pattern_data.get('prompt_context', '')[:200]
+                }
+            )
+            
+            logger.info(f"Captured permission pattern: {pattern_data['tool_name']} -> {pattern_data['decision']}")
+            
+        except Exception as e:
+            logger.error(f"Error capturing permission pattern: {e}")
+
+    async def _capture_tool_usage_context(
+        self, 
+        tool_name: str, 
+        prompt_context: str, 
+        session_id: str
+    ) -> None:
+        """Capture context that led to tool usage for pattern learning."""
+        try:
+            if not self.domain_manager:
+                return
+                
+            # Store tool usage context as a memory
+            await self.domain_manager.store_memory(
+                memory_type="tool_usage_context",
+                content=f"Tool usage context for {tool_name}: {prompt_context[:200]}",
+                importance=0.7,
+                metadata={
+                    "pattern_type": "tool_usage",
+                    "tool_name": tool_name,
+                    "session_id": session_id,
+                    "context": prompt_context[:500]
+                }
+            )
+            
+            logger.info(f"Captured tool usage context for {tool_name}")
+            
+        except Exception as e:
+            logger.error(f"Error capturing tool usage context: {e}")
 
 
 class HookRegistry:

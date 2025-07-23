@@ -100,24 +100,45 @@ class HookAnalyzerCLI:
             logger.debug(f"Post-tool analysis error: {e}")
             # Silent failure
     
-    async def handle_prompt_submit(self, prompt: str):
-        """Handle prompt submission analysis and enhancement."""
+    async def handle_prompt_submit(self, prompt: str, additional_context: dict = None):
+        """Handle prompt submission analysis and enhancement with enhanced Claude Code context."""
         try:
             await self._initialize()
+            
+            # Enhanced context available in Claude Code v1.0.59+
+            session_id = additional_context.get('session_id') if additional_context else None
+            transcript_path = additional_context.get('transcript_path') if additional_context else None
+            cwd = additional_context.get('cwd') if additional_context else None
+            
+            # Log enhanced context for debugging
+            if additional_context:
+                logger.debug(f"Enhanced context: session_id={session_id}, cwd={cwd}")
             
             # Check for automatic memory storage and modify prompt if needed
             modified_prompt = await self._check_auto_memory_capture(prompt)
             if modified_prompt:
                 prompt = modified_prompt
             
+            # Enhanced hook integration with additional context
             if self.hook_integration:
                 enhanced_prompt = await self.hook_integration.analyze_tool_usage('prompt_submit', {
-                    'prompt': prompt
+                    'prompt': prompt,
+                    'session_id': session_id,
+                    'transcript_path': transcript_path,
+                    'cwd': cwd,
+                    'additional_context': additional_context
                 })
                 
                 if enhanced_prompt:
-                    # Output modified prompt for Claude Code to use
-                    output = {"modified_prompt": enhanced_prompt}
+                    # Output modified prompt with enhanced context for Claude Code
+                    output = {
+                        "modified_prompt": enhanced_prompt,
+                        "additionalContext": {
+                            "memory_enhanced": True,
+                            "session_id": session_id,
+                            "analysis_timestamp": datetime.now().isoformat()
+                        }
+                    }
                     print(json.dumps(output))
                     return
         
@@ -125,7 +146,14 @@ class HookAnalyzerCLI:
             logger.debug(f"Prompt analysis error: {e}")
         
         # Return original prompt if analysis fails
-        print(json.dumps({"modified_prompt": prompt}))
+        output = {
+            "modified_prompt": prompt,
+            "additionalContext": {
+                "memory_enhanced": False,
+                "error": str(e) if 'e' in locals() else None
+            }
+        }
+        print(json.dumps(output))
     
     async def _check_auto_memory_capture(self, prompt: str):
         """Check if prompt should trigger automatic memory storage and modify prompt accordingly."""
@@ -191,6 +219,16 @@ async def main():
     parser.add_argument('--success', type=str, default='true',
                        help='Whether tool execution was successful')
     
+    # Enhanced Claude Code context (v1.0.59+)
+    parser.add_argument('--session-id', type=str, default='',
+                       help='Claude Code session identifier')
+    parser.add_argument('--transcript-path', type=str, default='',
+                       help='Path to conversation transcript')
+    parser.add_argument('--cwd', type=str, default='',
+                       help='Current working directory')
+    parser.add_argument('--additional-context', type=str, default='',
+                       help='Additional context data as JSON')
+    
     # Utility flags
     parser.add_argument('--timeout', type=int, default=5,
                        help='Timeout for analysis in seconds')
@@ -221,8 +259,23 @@ async def main():
             )
         
         elif args.prompt_submit and args.prompt:
+            # Parse additional context if provided
+            additional_context = {}
+            if args.session_id:
+                additional_context['session_id'] = args.session_id
+            if args.transcript_path:
+                additional_context['transcript_path'] = args.transcript_path
+            if args.cwd:
+                additional_context['cwd'] = args.cwd
+            if args.additional_context:
+                try:
+                    extra_context = json.loads(args.additional_context)
+                    additional_context.update(extra_context)
+                except json.JSONDecodeError:
+                    logger.debug(f"Invalid additional context JSON: {args.additional_context}")
+            
             await asyncio.wait_for(
-                analyzer.handle_prompt_submit(args.prompt),
+                analyzer.handle_prompt_submit(args.prompt, additional_context or None),
                 timeout=args.timeout
             )
         
