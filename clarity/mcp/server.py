@@ -1954,43 +1954,28 @@ class MemoryMcpServer:
             import subprocess
             from datetime import datetime
             
-            # Determine container name for this MCP server instance
-            # Try to auto-detect the actual running container
-            container_name = None
+            # Get container name from hostname (works inside container)
+            # Docker containers use their container ID/name as hostname by default
+            import socket
             
             try:
-                # Get list of running containers
-                result = subprocess.run([
-                    "docker", "ps", "--format", "{{.Names}}"
-                ], capture_output=True, text=True, check=True)
+                hostname = socket.gethostname()
                 
-                running_containers = result.stdout.strip().split('\n')
-                
-                # Look for MCP-related containers
-                mcp_containers = [name for name in running_containers 
-                                 if any(keyword in name.lower() for keyword in 
-                                       ['alunai', 'clarity', 'mcp'])]
-                
-                if mcp_containers:
-                    container_name = mcp_containers[0]  # Use first found
-                    logger.info(f"🔍 DEBUG: Auto-detected container: {container_name}")
+                # Check if hostname looks like a container ID (12 hex chars) or is a named container
+                if len(hostname) == 12 and all(c in '0123456789abcdef' for c in hostname):
+                    # This is a container ID - use it directly since docker command isn't available inside container
+                    container_name = hostname
+                    logger.info(f"🔍 DEBUG: Using container ID from hostname: {container_name}")
                 else:
-                    # Fallback to common names
-                    potential_names = [
-                        "alunai-clarity-mcp-dev",
-                        "alunai-clarity-mcp",
-                        "mcp-alunai-clarity", 
-                        "alunai_clarity_mcp",
-                        "mcp_alunai_clarity"
-                    ]
-                    container_name = potential_names[0]
-                    logger.info(f"🔍 DEBUG: No MCP containers found, using fallback: {container_name}")
+                    # Hostname is already the container name
+                    container_name = hostname
+                    logger.info(f"🔍 DEBUG: Using hostname as container name: {container_name}")
                     
             except Exception as e:
-                logger.debug(f"Could not auto-detect container: {e}")
-                # Final fallback
-                container_name = "alunai-clarity-mcp-dev"
-                logger.info(f"🔍 DEBUG: Using default container name: {container_name}")
+                logger.debug(f"Could not get hostname: {e}")
+                # Final fallback - but at this point, we should use a more generic approach
+                container_name = "$(docker ps --format '{{.Names}}' | grep -E '(alunai|clarity|mcp)' | head -1 || echo 'current-container')"
+                logger.info(f"🔍 DEBUG: Using shell detection fallback")
             
             # Create hook configuration that executes via Docker container
             hook_config = {
