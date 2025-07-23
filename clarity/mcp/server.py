@@ -1951,13 +1951,48 @@ class MemoryMcpServer:
         try:
             import os
             import json
+            import subprocess
             from datetime import datetime
             
-            # Create the hook configuration with relative path from project root
-            python_cmd = "python"
-            # Use portable relative path that works from any project location
-            analyzer_script = "./clarity/mcp/hook_analyzer.py"
+            # Determine container name for this MCP server instance
+            # Try to auto-detect the actual running container
+            container_name = None
             
+            try:
+                # Get list of running containers
+                result = subprocess.run([
+                    "docker", "ps", "--format", "{{.Names}}"
+                ], capture_output=True, text=True, check=True)
+                
+                running_containers = result.stdout.strip().split('\n')
+                
+                # Look for MCP-related containers
+                mcp_containers = [name for name in running_containers 
+                                 if any(keyword in name.lower() for keyword in 
+                                       ['alunai', 'clarity', 'mcp'])]
+                
+                if mcp_containers:
+                    container_name = mcp_containers[0]  # Use first found
+                    logger.info(f"🔍 DEBUG: Auto-detected container: {container_name}")
+                else:
+                    # Fallback to common names
+                    potential_names = [
+                        "alunai-clarity-mcp-dev",
+                        "alunai-clarity-mcp",
+                        "mcp-alunai-clarity", 
+                        "alunai_clarity_mcp",
+                        "mcp_alunai_clarity"
+                    ]
+                    container_name = potential_names[0]
+                    logger.info(f"🔍 DEBUG: No MCP containers found, using fallback: {container_name}")
+                    
+            except Exception as e:
+                logger.debug(f"Could not auto-detect container: {e}")
+                # Final fallback
+                container_name = "alunai-clarity-mcp-dev"
+                logger.info(f"🔍 DEBUG: Using default container name: {container_name}")
+            
+            # Create hook configuration that executes via Docker container
             hook_config = {
                 "hooks": {
                     "UserPromptSubmit": [
@@ -1966,8 +2001,8 @@ class MemoryMcpServer:
                             "hooks": [
                                 {
                                     "type": "command",
-                                    "command": f"{python_cmd} {analyzer_script} --prompt-submit --prompt={{prompt}}",
-                                    "timeout_ms": 1500,
+                                    "command": f"docker exec {container_name} python /app/clarity/mcp/hook_analyzer.py --prompt-submit --prompt={{prompt}}",
+                                    "timeout_ms": 2000,
                                     "continue_on_error": True,
                                     "modify_prompt": True
                                 }
@@ -1977,15 +2012,15 @@ class MemoryMcpServer:
                 },
                 "metadata": {
                     "created_by": "mcp-alunai-clarity",
-                    "version": "1.0.0",
-                    "description": "MCP auto-capture hooks for immediate functionality",
-                    "created_at": datetime.now().isoformat()
+                    "version": "2.0.0",
+                    "description": "MCP auto-capture hooks using Docker container execution",
+                    "created_at": datetime.now().isoformat(),
+                    "container_name": container_name
                 }
             }
             
             # Write hook configuration to project-specific directory
-            # Always create hooks - the relative path works in both contexts
-            
+            # This follows the same pattern used for Qdrant directory creation
             config_path = "./.claude/alunai-clarity/hooks.json"
             config_dir = os.path.dirname(config_path)
             os.makedirs(config_dir, exist_ok=True)
@@ -2007,7 +2042,8 @@ class MemoryMcpServer:
             with open(config_path, 'w') as f:
                 json.dump(merged_config, f, indent=2)
             
-            logger.info(f"✅ Claude Code hooks configured immediately at {config_path}")
+            logger.info(f"✅ Claude Code hooks configured automatically at {config_path}")
+            logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
             
         except Exception as e:
             logger.warning(f"Failed to setup Claude Code hooks immediately: {e}")

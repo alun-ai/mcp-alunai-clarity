@@ -154,9 +154,18 @@ async def main():
     """Main CLI entry point."""
     # Log hook execution for debugging
     import os
-    log_file = "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/hook_execution.log"
-    with open(log_file, "a") as f:
-        f.write(f"{datetime.now().isoformat()}: Hook executed with args: {sys.argv}\n")
+    try:
+        # Try container log path first, fallback to host path
+        if os.path.exists("/app/data"):
+            log_file = "/app/data/hook_execution.log"
+        else:
+            log_file = "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/hook_execution.log"
+        
+        with open(log_file, "a") as f:
+            f.write(f"{datetime.now().isoformat()}: Hook executed with args: {sys.argv}\n")
+    except Exception:
+        # Ignore logging errors to avoid breaking hook execution
+        pass
     parser = argparse.ArgumentParser(
         description="MCP Hook Analyzer for Claude Code Integration",
         formatter_class=argparse.RawDescriptionHelpFormatter
