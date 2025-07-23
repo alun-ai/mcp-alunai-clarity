@@ -2004,11 +2004,20 @@ class MemoryMcpServer:
                 }
             }
             
-            # Add hooks configuration to existing config.json instead of separate file
-            # This is much cleaner and uses the same file that's already being created successfully
-            config_path = "/app/.claude/alunai-clarity/config.json"
+            # Add hooks configuration to existing config file (check both possible names)
+            # Users may have either config.json or default_config.json
+            possible_config_paths = [
+                "/app/.claude/alunai-clarity/config.json",
+                "/app/.claude/alunai-clarity/default_config.json"
+            ]
             
-            if os.path.exists(config_path):
+            config_path = None
+            for path in possible_config_paths:
+                if os.path.exists(path):
+                    config_path = path
+                    break
+            
+            if config_path and os.path.exists(config_path):
                 # Read existing config
                 with open(config_path, 'r') as f:
                     existing_config = json.load(f)
@@ -2029,7 +2038,7 @@ class MemoryMcpServer:
                 logger.info(f"✅ Claude Code hooks.json created: {hooks_path}")
                 logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
             else:
-                logger.warning(f"Config file not found at {config_path}, cannot add hooks")
+                logger.warning(f"No config file found at any of these paths: {possible_config_paths}, cannot add hooks")
             
         except Exception as e:
             logger.warning(f"Failed to setup Claude Code hooks immediately: {e}")
