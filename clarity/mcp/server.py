@@ -1984,14 +1984,7 @@ class MemoryMcpServer:
             }
             
             # Write hook configuration to project-specific directory
-            # Use current working directory to determine project root for hooks
-            import os
-            cwd = os.getcwd()
-            if cwd.endswith('/app'):
-                # Running in container - hooks need host paths
-                # Skip hook creation from container - will be created by host process
-                logger.info("🔍 DEBUG: Skipping hook creation from container context")
-                return
+            # Always create hooks - the relative path works in both contexts
             
             config_path = "./.claude/alunai-clarity/hooks.json"
             config_dir = os.path.dirname(config_path)
