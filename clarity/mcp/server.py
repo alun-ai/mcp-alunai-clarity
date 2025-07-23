@@ -2004,18 +2004,26 @@ class MemoryMcpServer:
                 }
             }
             
-            # Write hook configuration to project .claude directory (same location as Qdrant)
-            # The project root is mounted at /app, so .claude/alunai-clarity is at /app/.claude/alunai-clarity
-            claude_dir = "/app/.claude/alunai-clarity"
-            os.makedirs(claude_dir, exist_ok=True)
+            # Add hooks configuration to existing config.json instead of separate file
+            # This is much cleaner and uses the same file that's already being created successfully
+            config_path = "/app/.claude/alunai-clarity/config.json"
             
-            hooks_path = f"{claude_dir}/hooks.json"
-            
-            with open(hooks_path, 'w') as f:
-                json.dump(hook_config, f, indent=2)
-            
-            logger.info(f"✅ Claude Code hooks created at: {hooks_path}")
-            logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
+            if os.path.exists(config_path):
+                # Read existing config
+                with open(config_path, 'r') as f:
+                    existing_config = json.load(f)
+                
+                # Add hooks section to existing config
+                existing_config["claude_code_hooks"] = hook_config
+                
+                # Write back the merged config
+                with open(config_path, 'w') as f:
+                    json.dump(existing_config, f, indent=2)
+                
+                logger.info(f"✅ Claude Code hooks added to existing config: {config_path}")
+                logger.info(f"✅ Hooks will execute via Docker container: {container_name}")
+            else:
+                logger.warning(f"Config file not found at {config_path}, cannot add hooks")
             
         except Exception as e:
             logger.warning(f"Failed to setup Claude Code hooks immediately: {e}")
