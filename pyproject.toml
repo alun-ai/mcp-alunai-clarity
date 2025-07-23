@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp_alunai_clarity"
-version = "1.3.0"
+version = "1.4.0"
 description = "Alunai Clarity - An MCP server that gives cognitive abilities to Claude and other MCP aware systems"
 readme = "README.md"
 authors = [
