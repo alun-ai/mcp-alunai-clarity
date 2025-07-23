@@ -20,6 +20,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 try:
     from clarity.mcp.hook_integration import MCPHookIntegration
     from clarity.mcp.tool_indexer import MCPToolIndexer
+    from clarity.auto_memory.auto_capture import should_store_memory, extract_memory_content
     # Mock domain manager for standalone hook testing
     class MockDomainManager:
         async def store_memory(self, **kwargs):
@@ -103,6 +104,11 @@ class HookAnalyzerCLI:
         try:
             await self._initialize()
             
+            # Check for automatic memory storage and modify prompt if needed
+            modified_prompt = await self._check_auto_memory_capture(prompt)
+            if modified_prompt:
+                prompt = modified_prompt
+            
             if self.hook_integration:
                 enhanced_prompt = await self.hook_integration.analyze_tool_usage('prompt_submit', {
                     'prompt': prompt
@@ -119,6 +125,28 @@ class HookAnalyzerCLI:
         
         # Return original prompt if analysis fails
         print(json.dumps({"modified_prompt": prompt}))
+    
+    async def _check_auto_memory_capture(self, prompt: str):
+        """Check if prompt should trigger automatic memory storage and modify prompt accordingly."""
+        try:
+            if should_store_memory(prompt):
+                memory_type, content, importance = extract_memory_content(prompt)
+                
+                # Extract the content to store
+                content_to_store = content.get("fact", content.get("message", str(content)))
+                
+                # Create modified prompt that includes store_memory call
+                modified_prompt = f"""store_memory {content_to_store}
+
+Original request: {prompt}"""
+                
+                logger.debug(f"Auto-triggered store_memory for: {memory_type}")
+                return modified_prompt
+                    
+        except Exception as e:
+            logger.debug(f"Auto-memory capture error: {e}")
+        
+        return None
 
 
 async def main():
