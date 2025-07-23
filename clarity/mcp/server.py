@@ -65,6 +65,9 @@ class MemoryMcpServer:
         
         # Register tools
         self._register_tools()
+        
+        # Set up Claude Code hooks immediately for auto-capture
+        self._setup_claude_code_hooks_immediately()
     
     def _register_tools(self) -> None:
         """Register memory-related tools with the MCP server."""
@@ -1936,6 +1939,78 @@ class MemoryMcpServer:
         # Start the server using FastMCP's run method
         self.app.run()
     
+    def _setup_claude_code_hooks_immediately(self) -> None:
+        """Set up Claude Code hooks synchronously for immediate auto-capture."""
+        logger.info("🔍 DEBUG: Setting up Claude Code hooks immediately for auto-capture")
+        
+        # Skip hook initialization in quick-start mode
+        if self._quick_start_mode:
+            logger.info("🔍 DEBUG: Skipping hook setup in quick-start mode")
+            return
+        
+        try:
+            import os
+            import json
+            from datetime import datetime
+            
+            # Create the hook configuration
+            python_cmd = "python"
+            analyzer_script_path = os.path.join(os.path.dirname(__file__), "hook_analyzer.py")
+            analyzer_script = os.path.abspath(analyzer_script_path)
+            
+            hook_config = {
+                "hooks": {
+                    "UserPromptSubmit": [
+                        {
+                            "matcher": "*",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": f"{python_cmd} {analyzer_script} --prompt-submit --prompt={{prompt}}",
+                                    "timeout_ms": 1500,
+                                    "continue_on_error": True,
+                                    "modify_prompt": True
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "metadata": {
+                    "created_by": "mcp-alunai-clarity",
+                    "version": "1.0.0",
+                    "description": "MCP auto-capture hooks for immediate functionality",
+                    "created_at": datetime.now().isoformat()
+                }
+            }
+            
+            # Write hook configuration to project-specific directory
+            config_path = "./.claude/alunai-clarity/hooks.json"
+            config_dir = os.path.dirname(config_path)
+            os.makedirs(config_dir, exist_ok=True)
+            
+            # Merge with existing configuration if present
+            existing_config = {}
+            if os.path.exists(config_path):
+                try:
+                    with open(config_path, 'r') as f:
+                        existing_config = json.load(f)
+                except Exception as e:
+                    logger.debug(f"Could not read existing hooks: {e}")
+            
+            # Merge configurations (our hooks take precedence)
+            merged_config = existing_config.copy()
+            merged_config.update(hook_config)
+            
+            # Write the configuration
+            with open(config_path, 'w') as f:
+                json.dump(merged_config, f, indent=2)
+            
+            logger.info(f"✅ Claude Code hooks configured immediately at {config_path}")
+            
+        except Exception as e:
+            logger.warning(f"Failed to setup Claude Code hooks immediately: {e}")
+            logger.info("Hooks will be configured during lazy initialization instead")
+    
     async def _lazy_initialize_domains(self) -> None:
         """Initialize domains lazily when first memory operation is called."""
         logger.info(f"🔍 DEBUG: _lazy_initialize_domains called, _domains_initialized={self._domains_initialized}")
@@ -1987,6 +2062,20 @@ class MemoryMcpServer:
                         self.hook_manager = HookManager(self.domain_manager, self.autocode_hooks)
                         logger.info(f"🔍 DEBUG: Registering HookManager")
                         HookRegistry.register_manager(self.hook_manager)
+                        
+                        # Initialize MCP hooks for Claude Code integration (includes auto-capture)
+                        # Skip if already initialized early
+                        if not hasattr(self, 'mcp_hooks') or self.mcp_hooks is None:
+                            logger.info(f"🔍 DEBUG: About to initialize MCP hooks for Claude Code integration")
+                            try:
+                                from clarity.autocode.mcp_hooks import MCPAwarenessHooks
+                                self.mcp_hooks = MCPAwarenessHooks(self.domain_manager)
+                                await self.mcp_hooks.initialize()
+                                logger.info("MCP hooks initialized - Claude Code integration enabled")
+                            except Exception as e:
+                                logger.warning(f"Failed to initialize MCP hooks: {e}")
+                        else:
+                            logger.info("🔍 DEBUG: MCP hooks already initialized early, skipping")
                         
                         logger.info("AutoCode hooks, server extensions, and hook manager initialized lazily")
                     except ImportError as e:
