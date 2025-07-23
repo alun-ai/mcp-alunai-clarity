@@ -12,6 +12,7 @@ import sys
 import logging
 import os
 from pathlib import Path
+from datetime import datetime
 
 # Add the project root to Python path for imports
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -151,6 +152,11 @@ Original request: {prompt}"""
 
 async def main():
     """Main CLI entry point."""
+    # Log hook execution for debugging
+    import os
+    log_file = "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/hook_execution.log"
+    with open(log_file, "a") as f:
+        f.write(f"{datetime.now().isoformat()}: Hook executed with args: {sys.argv}\n")
     parser = argparse.ArgumentParser(
         description="MCP Hook Analyzer for Claude Code Integration",
         formatter_class=argparse.RawDescriptionHelpFormatter

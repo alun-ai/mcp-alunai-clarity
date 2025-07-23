@@ -1953,10 +1953,10 @@ class MemoryMcpServer:
             import json
             from datetime import datetime
             
-            # Create the hook configuration
+            # Create the hook configuration with relative path from project root
             python_cmd = "python"
-            analyzer_script_path = os.path.join(os.path.dirname(__file__), "hook_analyzer.py")
-            analyzer_script = os.path.abspath(analyzer_script_path)
+            # Use portable relative path that works from any project location
+            analyzer_script = "./clarity/mcp/hook_analyzer.py"
             
             hook_config = {
                 "hooks": {
@@ -1984,6 +1984,15 @@ class MemoryMcpServer:
             }
             
             # Write hook configuration to project-specific directory
+            # Use current working directory to determine project root for hooks
+            import os
+            cwd = os.getcwd()
+            if cwd.endswith('/app'):
+                # Running in container - hooks need host paths
+                # Skip hook creation from container - will be created by host process
+                logger.info("🔍 DEBUG: Skipping hook creation from container context")
+                return
+            
             config_path = "./.claude/alunai-clarity/hooks.json"
             config_dir = os.path.dirname(config_path)
             os.makedirs(config_dir, exist_ok=True)
