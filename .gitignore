@@ -19,6 +19,9 @@ qdrant_data/
 .qdrant_coordination/
 test_qdrant/
 
+# Development and local testing directories
+local-dev/
+
 # Backup and temporary files
 *-backup/
 *.log
