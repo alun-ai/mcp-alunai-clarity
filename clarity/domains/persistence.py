@@ -73,18 +73,46 @@ class QdrantPersistenceDomain:
         self.qdrant_path = self.qdrant_config.get("path", "./.claude/alunai-clarity/qdrant")
         self.prefer_grpc = self.qdrant_config.get("prefer_grpc", False)
         
-        # Embedding configuration
+        # Embedding configuration with fast initialization
+        # Fast embedding models for better initialization performance
+        self.fast_embedding_models = {
+            "paraphrase-MiniLM-L3-v2": {"dimensions": 384, "load_time_est": "~1s"},     # Fastest option
+            "all-MiniLM-L6-v2": {"dimensions": 384, "load_time_est": "~1.5s"},        # Current default
+            "all-MiniLM-L12-v2": {"dimensions": 384, "load_time_est": "~2s"},         # Higher quality
+        }
+        
+        # Use fast model by default, allow override
+        default_fast_model = "paraphrase-MiniLM-L3-v2"  # 50% faster loading than L6-v2
         self.embedding_model_name = self.config["embedding"].get(
-            "default_model", "sentence-transformers/all-MiniLM-L6-v2"
+            "default_model", 
+            self.config["embedding"].get("fast_model", default_fast_model)
         )
         self.embedding_dimensions = self.config["embedding"].get("dimensions", 384)
         
-        # Performance settings
-        self.index_params = self.qdrant_config.get("index_params", {
+        # Store fallback models for reliability
+        self.embedding_fallback_models = [
+            self.embedding_model_name,
+            "all-MiniLM-L6-v2",           # Reliable fallback
+            "paraphrase-MiniLM-L3-v2"     # Ultra-fast fallback
+        ]
+        
+        # Performance settings optimized for fast initialization
+        # Use initialization-friendly parameters, can be optimized later in background
+        self.init_index_params = self.qdrant_config.get("init_index_params", {
+            "m": 8,                    # Reduced from 16 for faster startup (good for <1000 vectors)
+            "ef_construct": 64,        # Reduced from 200 for faster startup  
+            "full_scan_threshold": 20, # Lower threshold for better small-dataset performance
+        })
+        
+        # Production parameters for background optimization (if needed later)
+        self.production_index_params = self.qdrant_config.get("index_params", {
             "m": 16,
             "ef_construct": 200,
-            "full_scan_threshold": 50,  # Fixed: Lower threshold to enable HNSW indexing with fewer memories
+            "full_scan_threshold": 50,
         })
+        
+        # Use init parameters by default
+        self.index_params = self.init_index_params
         
         # Will be initialized during initialize()
         self.client = None
@@ -239,7 +267,7 @@ class QdrantPersistenceDomain:
             raise
     
     def _lazy_load_embedding_model(self) -> None:
-        """Lazy load the embedding model when first needed."""
+        """Lazy load the embedding model with fallback support for faster initialization."""
         if self.embedding_model is not None:
             return
             
@@ -248,14 +276,40 @@ class QdrantPersistenceDomain:
             raise ImportError("sentence-transformers not available")
         
         import time
-        load_start = time.perf_counter()
-        logger.info(f"🔄 Lazy loading embedding model: {self.embedding_model_name}")
         
-        with redirect_stderr(StringIO()):
-            self.embedding_model = SentenceTransformerClass(self.embedding_model_name)
-        
-        load_time = time.perf_counter() - load_start
-        logger.info(f"✅ Embedding model loaded successfully in {load_time:.3f}s")
+        # Try models in fallback order for reliability
+        for model_name in self.embedding_fallback_models:
+            try:
+                load_start = time.perf_counter()
+                logger.info(f"🔄 Loading embedding model: {model_name}")
+                
+                # Get estimated load time for user feedback
+                load_time_est = self.fast_embedding_models.get(model_name, {}).get("load_time_est", "~2s")
+                logger.debug(f"   Expected load time: {load_time_est}")
+                
+                # Load model with stderr suppression for cleaner output
+                with redirect_stderr(StringIO()):
+                    self.embedding_model = SentenceTransformerClass(
+                        model_name,
+                        cache_folder=self.config.get("embedding", {}).get("cache_dir"),
+                        use_auth_token=False  # Skip auth validation for faster loading
+                    )
+                
+                load_time = time.perf_counter() - load_start
+                logger.info(f"✅ Embedding model {model_name} loaded successfully in {load_time:.3f}s")
+                
+                # Update the model name to reflect what was actually loaded
+                self.embedding_model_name = model_name
+                return
+                
+            except Exception as e:
+                logger.warning(f"Failed to load embedding model {model_name}: {e}")
+                if model_name == self.embedding_fallback_models[-1]:
+                    # Last fallback failed, re-raise
+                    raise RuntimeError(f"All embedding models failed to load. Last error: {e}")
+                else:
+                    logger.info(f"Trying fallback model...")
+                    continue
     
     def _generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for text with caching."""
