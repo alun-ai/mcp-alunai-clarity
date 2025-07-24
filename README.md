@@ -50,7 +50,9 @@ Alunai Clarity provides the following core capabilities:
 
 ### Docker Setup (Recommended)
 
-Add to your Claude Desktop `claude_desktop_config.json`:
+Add to:
+- Claude Desktop `claude_desktop_config.json`:
+- Cursor/Claude Terminal: `./.mcp.json` or Global `~/.claude.json`
 
 ```json
 {
@@ -68,9 +70,10 @@ Add to your Claude Desktop `claude_desktop_config.json`:
 }
 ```
 
-Storage structure:
+Persistent Storage structure:
+> Note: These will be created automatically in whatever directory you start Claude in.
 - `./.claude/alunai-clarity/config.json` - Configuration
-- `./.claude/alunai-clarity/qdrant/` - Vector database 
+- `./.claude/alunai-clarity/qdrant/` - Vector database
 - `./.claude/alunai-clarity/cache/` - Model cache
 - `./.claude/alunai-clarity/hooks.json` - Claude Code hooks
 
@@ -179,18 +182,135 @@ This will automatically store memories without explicit tool calls.
 - Fast model option: ~3s initialization with paraphrase-MiniLM-L3-v2
 - Connection recovery: Sub-second automatic failover
 
-## Migration from JSON
+## Usage Examples
 
-Migrate existing JSON-based memory to high-performance Qdrant:
+### Automatic Memory Triggers
 
-```bash
-# Using Docker
-docker run --entrypoint="python" \
-           -v /path/to/memory.json:/tmp/memory.json \
-           -v ./.claude/alunai-clarity:/app/data \
-           ghcr.io/alun-ai/mcp-alunai-clarity:latest \
-           -m clarity.cli.import_json /tmp/memory.json
+The system automatically captures memories when you use these patterns:
+
+#### Memory Storage Phrases
 ```
+"Remember this: [content]"
+"Store this information: [content]"
+"Keep track of: [content]"
+"Note that: [content]"
+"Save this: [content]"
+"Don't forget: [content]"
+```
+
+#### Procedural Thinking Triggers
+Complex tasks automatically activate 5-stage sequential thinking:
+
+```
+".claude/m-task [description]"          # Direct task command
+"How should I approach..."              # Planning requests
+"What steps do I need to..."            # Multi-step processes
+"Help me design/implement/architect..." # Complex design tasks
+"I need to systematically..."           # Systematic approach requests
+"Break down this problem..."            # Problem decomposition
+"Analyze and solve..."                  # Analysis requests
+```
+
+#### Memory Retrieval Phrases
+These phrases trigger automatic memory consultation:
+
+```
+"What do you remember about..."
+"Have we worked on this before..."
+"Recall my preferences for..."
+"What did we learn about..."
+"Show me similar projects..."
+"What patterns have we used..."
+```
+
+#### MCP Tool Discovery Phrases
+These trigger automatic MCP server discovery and tool suggestions:
+
+```
+"I need to query the database..."       # → postgres MCP tools
+"Let me browse this website..."         # → playwright MCP tools  
+"I should run some SQL..."              # → database MCP tools
+"I need to test the API..."             # → fetch/curl MCP tools
+"Let me check the filesystem..."        # → filesystem MCP tools
+```
+
+### Example Workflows
+
+#### 1. Project Setup with Memory
+```
+User: "Remember this: I prefer using TypeScript with strict mode, 
+       ESLint with Airbnb config, and Jest for testing"
+
+Claude: ✅ Stored memory: coding_preferences
+        🧠 This will be automatically referenced in future projects
+```
+
+#### 2. Complex Task Analysis
+```
+User: ".claude/m-task Implement a secure authentication system for our API"
+
+Claude: 🧠 **PROCEDURAL THINKING ACTIVATED**
+        
+        Using sequential_thinking for systematic analysis:
+        
+        **Stage 1: Problem Analysis**
+        - Authentication requirements analysis
+        - Security threat modeling
+        - API endpoint protection needs
+        
+        **Stage 2: Context Exploration**  
+        - Current system architecture review
+        - Available auth frameworks
+        - Security best practices
+        
+        [Continues through all 5 stages...]
+```
+
+#### 3. Automatic Memory Consultation
+```
+User: "I'm setting up a new React project"
+
+Claude: 🧠 **Relevant memories found:**
+        - Your TypeScript + ESLint preferences (stored 2 days ago)
+        - React project structure patterns (from 3 similar projects)
+        - Testing setup with Jest configuration
+        
+        Based on your preferences, I'll set up TypeScript with strict mode...
+```
+
+#### 4. MCP Tool Suggestions
+```
+User: "I need to query the user table to check account status"
+
+Claude: 💡 **MCP Tools Available:**
+        - **postgres_query**: Execute SQL queries directly
+        - **postgres_schema**: Get table schema information
+        
+        Instead of writing a script, let me use the postgres MCP tool:
+        [Uses postgres_query tool directly]
+```
+
+### Automatic Patterns
+
+#### Memory Auto-Capture Patterns
+- **"Remember this:"** → Stores as `user_preference` or `important_fact`
+- **Code explanations** → Stored as `code_pattern` or `solution_approach`
+- **Project decisions** → Stored as `architectural_decision`
+- **Error solutions** → Stored as `troubleshooting_solution`
+- **Workflow improvements** → Stored as `workflow_optimization`
+
+#### Thinking Pattern Recognition
+- **Long, complex requests** → Triggers sequential thinking
+- **Multiple "and" clauses** → Activates systematic breakdown
+- **Planning keywords** → Enables structured analysis
+- **Problem-solving context** → Engages 5-stage process
+
+#### MCP Tool Pattern Matching
+- **Database terms** → Suggests postgres/sqlite MCP tools
+- **Web/browser terms** → Suggests playwright/puppeteer tools
+- **File operations** → Suggests filesystem MCP tools
+- **API testing** → Suggests fetch/http MCP tools
+- **Git operations** → Suggests git MCP tools
 
 Results:
 - Automatic data integrity verification
@@ -209,11 +329,6 @@ Results:
 - **Slow initialization**: Use `fast_model` configuration option
 - **Memory usage**: Check `qdrant_performance_stats` for optimization
 - **Search performance**: Run `optimize_qdrant_collection`
-
-### Migration Issues
-- **Import failures**: Use `--dry-run` to validate JSON structure
-- **Large datasets**: Increase `--batch-size` for better throughput
-- **Permission errors**: Ensure write access to data directory
 
 ## Development
 
