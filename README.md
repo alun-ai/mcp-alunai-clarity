@@ -119,7 +119,8 @@ This will automatically store memories without explicit tool calls.
 - `find_similar_sessions` - Historical session analysis
 - `autocode_stats` - Intelligence system metrics
 
-## Configuration
+## Example Configuration
+> Alunai Clarity will set these configurations up automatically.  These are just for reference.
 
 ### Basic Configuration
 ```json
@@ -186,7 +187,7 @@ This will automatically store memories without explicit tool calls.
 
 ### Automatic Memory Triggers
 
-The system automatically captures memories when you use these patterns:
+The system automatically captures memories by default using the built in hooks functionaly.  However, if you want to trigger manual captures you can use these patterns:
 
 #### Memory Storage Phrases
 ```
@@ -196,13 +197,13 @@ The system automatically captures memories when you use these patterns:
 "Note that: [content]"
 "Save this: [content]"
 "Don't forget: [content]"
+"Remember that." # Used if something important like a summary was in the previous response.
 ```
 
 #### Procedural Thinking Triggers
 Complex tasks automatically activate 5-stage sequential thinking:
-
+> These are just examples, the system will trigger with many similar forms of expression.
 ```
-".claude/m-task [description]"          # Direct task command
 "How should I approach..."              # Planning requests
 "What steps do I need to..."            # Multi-step processes
 "Help me design/implement/architect..." # Complex design tasks
@@ -213,7 +214,7 @@ Complex tasks automatically activate 5-stage sequential thinking:
 
 #### Memory Retrieval Phrases
 These phrases trigger automatic memory consultation:
-
+> These are just examples, the system will trigger with many similar forms of expression.
 ```
 "What do you remember about..."
 "Have we worked on this before..."
@@ -225,10 +226,10 @@ These phrases trigger automatic memory consultation:
 
 #### MCP Tool Discovery Phrases
 These trigger automatic MCP server discovery and tool suggestions:
-
+> Beta - this is still being developed, but works better than native.
 ```
 "I need to query the database..."       # → postgres MCP tools
-"Let me browse this website..."         # → playwright MCP tools  
+"Let me browse this website..."         # → playwright MCP tools
 "I should run some SQL..."              # → database MCP tools
 "I need to test the API..."             # → fetch/curl MCP tools
 "Let me check the filesystem..."        # → filesystem MCP tools
@@ -238,7 +239,7 @@ These trigger automatic MCP server discovery and tool suggestions:
 
 #### 1. Project Setup with Memory
 ```
-User: "Remember this: I prefer using TypeScript with strict mode, 
+User: "Remember this: I prefer using TypeScript with strict mode,
        ESLint with Airbnb config, and Jest for testing"
 
 Claude: ✅ Stored memory: coding_preferences
@@ -247,22 +248,22 @@ Claude: ✅ Stored memory: coding_preferences
 
 #### 2. Complex Task Analysis
 ```
-User: ".claude/m-task Implement a secure authentication system for our API"
+User: "Let's plan out a secure authentication system for our API"
 
 Claude: 🧠 **PROCEDURAL THINKING ACTIVATED**
-        
+
         Using sequential_thinking for systematic analysis:
-        
+
         **Stage 1: Problem Analysis**
         - Authentication requirements analysis
         - Security threat modeling
         - API endpoint protection needs
-        
-        **Stage 2: Context Exploration**  
+
+        **Stage 2: Context Exploration**
         - Current system architecture review
         - Available auth frameworks
         - Security best practices
-        
+
         [Continues through all 5 stages...]
 ```
 
@@ -274,7 +275,7 @@ Claude: 🧠 **Relevant memories found:**
         - Your TypeScript + ESLint preferences (stored 2 days ago)
         - React project structure patterns (from 3 similar projects)
         - Testing setup with Jest configuration
-        
+
         Based on your preferences, I'll set up TypeScript with strict mode...
 ```
 
@@ -285,7 +286,7 @@ User: "I need to query the user table to check account status"
 Claude: 💡 **MCP Tools Available:**
         - **postgres_query**: Execute SQL queries directly
         - **postgres_schema**: Get table schema information
-        
+
         Instead of writing a script, let me use the postgres MCP tool:
         [Uses postgres_query tool directly]
 ```
