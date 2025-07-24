@@ -724,8 +724,11 @@ class MemoryMcpServer:
                 import time
                 start_time = time.time()
                 
-                if not self.domain_manager or not hasattr(self.domain_manager, 'structured_thinking_domain'):
-                    return MCPResponseBuilder.error("Structured thinking domain not available")
+                # Ensure domains are initialized for memory operations
+                await self._lazy_initialize_domains()
+                
+                if not self.domain_manager:
+                    return MCPResponseBuilder.error("Domain manager not available")
                 
                 # Create a unique session ID if not provided
                 if not session_id:
@@ -761,23 +764,25 @@ class MemoryMcpServer:
                     }
                 ]
                 
-                # Store the thinking session
+                # Process the thinking session by storing each stage in memory
                 thinking_results = []
                 
                 for i, stage_info in enumerate(thinking_stages, 1):
-                    stage_result = await self.domain_manager.structured_thinking_domain.process_structured_thought(
-                        stage=stage_info["stage"],
-                        content=stage_info["prompt"],
-                        thought_number=i,
-                        session_id=session_id,
-                        total_expected=len(thinking_stages),
-                        tags=["sequential_thinking", thinking_style],
-                        axioms=[f"Focus: {stage_info['focus']}"],
-                        relationships=[{
-                            "type": "sequential_stage",
+                    # Store each thinking stage in memory for future reference
+                    stage_memory_id = await self.domain_manager.store_memory(
+                        memory_type="sequential_thinking_stage",
+                        content=f"Stage {i}: {stage_info['stage']} - {stage_info['prompt']}",
+                        importance=0.8,
+                        metadata={
+                            "session_id": session_id,
+                            "stage": stage_info["stage"],
                             "stage_number": i,
-                            "total_stages": len(thinking_stages)
-                        }]
+                            "total_stages": len(thinking_stages),
+                            "focus": stage_info["focus"],
+                            "thinking_style": thinking_style,
+                            "task": task
+                        },
+                        context={"context": context} if context else None
                     )
                     
                     thinking_results.append({
@@ -785,14 +790,30 @@ class MemoryMcpServer:
                         "stage_number": i,
                         "focus": stage_info["focus"],
                         "content": stage_info["prompt"],
-                        "result": stage_result
+                        "memory_id": stage_memory_id
                     })
                 
-                # Generate a comprehensive summary
-                summary_result = await self.domain_manager.structured_thinking_domain.generate_thinking_summary(
-                    session_id=session_id,
-                    include_relationships=True,
-                    include_stage_summaries=True
+                # Store the complete thinking session summary
+                session_summary = f"""Sequential Thinking Session: {task}
+
+Thinking Style: {thinking_style}
+Context: {context or 'No additional context'}
+
+Stages Completed:
+""" + "\n".join([f"{i}. {stage['focus']}: {stage['content']}" for i, stage in enumerate(thinking_results, 1)])
+
+                summary_memory_id = await self.domain_manager.store_memory(
+                    memory_type="sequential_thinking_session",
+                    content=session_summary,
+                    importance=0.9,
+                    metadata={
+                        "session_id": session_id,
+                        "task": task,
+                        "thinking_style": thinking_style,
+                        "stages_count": len(thinking_stages),
+                        "execution_time": time.time() - start_time
+                    },
+                    context={"context": context} if context else None
                 )
                 
                 # Create the final response
@@ -802,9 +823,16 @@ class MemoryMcpServer:
                     "thinking_style": thinking_style,
                     "stages_completed": len(thinking_stages),
                     "thinking_process": thinking_results,
-                    "summary": summary_result,
+                    "summary_memory_id": summary_memory_id,
                     "context": context,
-                    "execution_time": time.time() - start_time
+                    "execution_time": time.time() - start_time,
+                    "stages": [
+                        {
+                            "stage": stage["stage"],
+                            "focus": stage["focus"],
+                            "description": stage["content"]
+                        } for stage in thinking_results
+                    ]
                 }
                 
                 # Trigger hooks for sequential thinking completion
