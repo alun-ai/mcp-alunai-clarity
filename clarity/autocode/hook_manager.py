@@ -1340,6 +1340,10 @@ class HookManager:
                 user_prompt, session_id, cwd
             )
             
+            # Check if prompt should trigger procedural thinking
+            if await self._should_trigger_procedural_thinking(user_prompt, data):
+                await self._trigger_procedural_thinking(user_prompt, session_id, cwd)
+            
             # Inject relevant memories if beneficial
             if memory_analysis.get("should_inject_context", False):
                 await self._inject_contextual_memories(
@@ -2016,6 +2020,125 @@ class HookManager:
             
         except Exception as e:
             logger.error(f"Error capturing tool usage context: {e}")
+
+    async def _should_trigger_procedural_thinking(self, prompt: str, context: Dict[str, Any]) -> bool:
+        """Determine if prompt should trigger procedural thinking (sequential thinking tool)."""
+        try:
+            import re
+            
+            # Enhanced patterns for procedural thinking triggers
+            procedural_patterns = {
+                # Command patterns that suggest complex tasks
+                "command_patterns": [
+                    r"\.claude/m-task",  # Direct m-task usage
+                    r"\.claude/m-explore",  # Exploration tasks
+                    r"\.claude/m-execute",  # Execution tasks
+                ],
+                
+                # Complex task indicators
+                "complexity_patterns": [
+                    r"(?:how to|how should|what steps|plan|strategy|approach)",
+                    r"(?:implement|design|architect|build|create|develop)",
+                    r"(?:analyze|investigate|debug|troubleshoot|solve)",
+                    r"(?:optimize|improve|enhance|refactor|migrate)",
+                    r"(?:systematic|methodical|step-by-step|comprehensive)",
+                ],
+                
+                # Multi-step language
+                "multi_step_patterns": [
+                    r"(?:first|then|next|finally|step \d+|phase \d+)",
+                    r"(?:break down|breakdown|decompose|structure)",
+                    r"(?:multiple|several|various|different) (?:steps|stages|phases)",
+                ],
+                
+                # Problem-solving indicators
+                "problem_solving_patterns": [
+                    r"(?:problem|issue|challenge|difficulty|complex)",
+                    r"(?:not sure|uncertain|confused|stuck|help me)",
+                    r"(?:best way|right approach|proper method|correct strategy)",
+                ]
+            }
+            
+            prompt_lower = prompt.lower()
+            
+            # Check for direct command usage (high priority)
+            for pattern in procedural_patterns["command_patterns"]:
+                if re.search(pattern, prompt_lower):
+                    logger.info(f"Procedural thinking triggered by command pattern: {pattern}")
+                    return True
+            
+            # Check for complexity indicators
+            complexity_score = 0
+            for pattern_type, patterns in procedural_patterns.items():
+                if pattern_type == "command_patterns":
+                    continue
+                    
+                for pattern in patterns:
+                    if re.search(pattern, prompt_lower):
+                        complexity_score += 1
+                        
+            # Trigger if we have multiple complexity indicators
+            if complexity_score >= 2:
+                logger.info(f"Procedural thinking triggered by complexity score: {complexity_score}")
+                return True
+                
+            # Check prompt length (long prompts often need systematic thinking)
+            if len(prompt) > 200 and complexity_score >= 1:
+                logger.info(f"Procedural thinking triggered by length + complexity")
+                return True
+                
+            return False
+            
+        except Exception as e:
+            logger.error(f"Error checking procedural thinking trigger: {e}")
+            return False
+
+    async def _trigger_procedural_thinking(self, prompt: str, session_id: str, cwd: str) -> None:
+        """Trigger procedural thinking by calling the sequential thinking tool."""
+        try:
+            # Output directive for Claude Code to use sequential thinking
+            thinking_directive = f"""
+
+🧠 **PROCEDURAL THINKING ACTIVATED**
+
+Use the `mcp__sequential-thinking__sequentialthinking` tool to systematically analyze this request:
+
+**Request:** {prompt[:200]}{'...' if len(prompt) > 200 else ''}
+**Session:** {session_id}
+**Context:** {cwd}
+
+**Analysis Instructions:**
+1. Break down the request into logical components
+2. Identify dependencies and prerequisites  
+3. Create a step-by-step approach
+4. Consider potential challenges and solutions
+5. Provide structured recommendations
+
+---
+"""
+            
+            # Output the directive via stdout (Claude Code will capture this)
+            print(thinking_directive)
+            
+            # Also capture this as a memory for future reference
+            if self.domain_manager:
+                await self.domain_manager.store_memory(
+                    memory_type="procedural_thinking_trigger",
+                    content=f"Triggered procedural thinking for: {prompt[:100]}",
+                    importance=0.8,
+                    metadata={
+                        "trigger_type": "procedural_thinking",
+                        "session_id": session_id,
+                        "cwd": cwd,
+                        "prompt_length": len(prompt),
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+                )
+            
+            logger.info(f"Triggered procedural thinking for session {session_id}")
+            
+        except Exception as e:
+            logger.error(f"Error triggering procedural thinking: {e}")
 
 
 class HookRegistry:
