@@ -280,19 +280,14 @@ class UnifiedQdrantManager:
     @asynccontextmanager
     async def get_connection(self) -> AsyncContextManager[Any]:  # QdrantClient
         """
-        Universal connection acquisition method.
+        Universal connection acquisition method with comprehensive timeout and error handling.
         
         This single method optimally handles ALL connection scenarios:
         - Local file storage (single or multi-process)
         - Remote server connections (with intelligent pooling)
         - Automatic strategy switching based on performance
         - Comprehensive error handling and retry logic
-        
-        Replaces ALL existing connection patterns in the codebase:
-        - get_shared_qdrant_client()
-        - qdrant_connection() 
-        - Direct QdrantClient instantiation
-        - Inline connection management
+        - Connection hanging prevention with timeouts
         
         Usage:
             async with manager.get_connection() as client:
@@ -309,10 +304,14 @@ class UnifiedQdrantManager:
         
         connection_acquired = False
         client = None
+        max_connection_time = self._config.timeout + 30  # Add buffer for connection setup
         
         try:
-            # Route to appropriate strategy implementation
-            client = await self._acquire_strategy_connection()
+            # Route to appropriate strategy implementation with global timeout
+            client = await asyncio.wait_for(
+                self._acquire_strategy_connection(),
+                timeout=max_connection_time
+            )
             connection_acquired = True
             
             # Update performance metrics
@@ -326,22 +325,63 @@ class UnifiedQdrantManager:
             
             yield client
             
+        except asyncio.TimeoutError:
+            error_msg = f"Connection acquisition timeout after {max_connection_time}s with {self._strategy.value if self._strategy else 'unknown'} strategy"
+            logger.error(error_msg)
+            self._stats.failed_requests += 1
+            self._stats.record_error(error_msg)
+            
+            # Try emergency fallback for timeouts
+            try:
+                logger.warning("Attempting emergency fallback for timeout")
+                fallback_client = await asyncio.wait_for(
+                    self._get_emergency_connection(),
+                    timeout=15.0  # Quick emergency timeout
+                )
+                yield fallback_client
+                return
+            except Exception as emergency_error:
+                logger.error(f"Emergency fallback failed: {emergency_error}")
+                raise QdrantConnectionError(error_msg)
+            
         except Exception as e:
             self._stats.failed_requests += 1
             self._stats.record_error(str(e))
             
-            error_msg = f"Connection acquisition failed with {self._strategy.value} strategy: {e}"
+            error_msg = f"Connection acquisition failed with {self._strategy.value if self._strategy else 'unknown'} strategy: {e}"
             logger.error(error_msg)
             
             # Attempt strategy fallback for recoverable errors
-            if connection_acquired or "timeout" in str(e).lower():
+            if (
+                "already accessed" in str(e) or 
+                "timeout" in str(e).lower() or 
+                "instance is closed" in str(e).lower() or
+                "connection" in str(e).lower() or
+                connection_acquired
+            ):
                 try:
-                    logger.info("Attempting fallback connection strategy")
-                    fallback_client = await self._get_fallback_connection()
+                    logger.info(f"Attempting fallback connection strategy for recoverable error: {str(e)[:100]}...")
+                    fallback_client = await asyncio.wait_for(
+                        self._get_fallback_connection(),
+                        timeout=20.0  # Reasonable fallback timeout
+                    )
                     yield fallback_client
                     return  # Exit successful fallback
                 except Exception as fallback_error:
                     logger.error(f"Fallback strategy also failed: {fallback_error}")
+                    
+                    # Last resort: try emergency direct connection for critical errors
+                    if "instance is closed" in str(e).lower() or "timeout" in str(e).lower():
+                        try:
+                            logger.warning("Attempting final emergency connection for critical error")
+                            emergency_client = await asyncio.wait_for(
+                                self._get_emergency_connection(),
+                                timeout=10.0
+                            )
+                            yield emergency_client
+                            return
+                        except Exception as emergency_error:
+                            logger.error(f"Emergency connection failed: {emergency_error}")
             
             raise QdrantConnectionError(
                 error_msg,
@@ -405,11 +445,19 @@ class UnifiedQdrantManager:
             async with self._client_lock:
                 if self._shared_client is None:  # Double-check pattern
                     logger.debug("Acquiring shared Qdrant client for multi-process coordination")
-                    # Use the SharedQdrantManager instance directly
-                    self._shared_client = await self._shared_manager.get_client(
-                        self._config.path, self._config.timeout
-                    )
-                    logger.info("Shared Qdrant client acquired successfully")
+                    
+                    # Add timeout protection for shared client acquisition
+                    try:
+                        self._shared_client = await asyncio.wait_for(
+                            self._shared_manager.get_client(
+                                self._config.path, self._config.timeout
+                            ),
+                            timeout=self._config.timeout + 10  # Add 10s buffer for coordination
+                        )
+                        logger.info("Shared Qdrant client acquired successfully")
+                    except asyncio.TimeoutError:
+                        logger.error(f"Timeout acquiring shared client after {self._config.timeout + 10}s")
+                        raise QdrantConnectionError("Timeout acquiring shared Qdrant client")
         
         return self._shared_client
     
@@ -429,7 +477,7 @@ class UnifiedQdrantManager:
     
     async def _get_fallback_connection(self) -> Any:  # QdrantClient
         """Get fallback connection when primary strategy fails."""
-        logger.info("Attempting fallback connection strategy")
+        logger.info("Attempting fallback connection strategies")
         
         # Try simpler strategies first
         fallback_strategies = [
@@ -443,12 +491,57 @@ class UnifiedQdrantManager:
                 
             try:
                 logger.debug(f"Trying fallback strategy: {fallback_strategy.value}")
-                return await self._get_connection_for_strategy(fallback_strategy)
+                client = await asyncio.wait_for(
+                    self._get_connection_for_strategy(fallback_strategy),
+                    timeout=15.0  # Quick fallback timeout
+                )
+                logger.info(f"Fallback strategy {fallback_strategy.value} succeeded")
+                return client
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"Fallback strategy {fallback_strategy.value} timed out")
+                continue
             except Exception as e:
                 logger.debug(f"Fallback strategy {fallback_strategy.value} failed: {e}")
                 continue
         
         raise QdrantConnectionError("All fallback strategies exhausted")
+    
+    async def _get_emergency_connection(self) -> Any:  # QdrantClient
+        """Get emergency connection bypassing all coordination mechanisms."""
+        logger.warning("Attempting emergency direct connection (bypassing coordination)")
+        
+        try:
+            # Create direct client without any coordination
+            QdrantClientClass = db_deps.QdrantClient
+            if QdrantClientClass is None:
+                raise QdrantConnectionError("qdrant-client not available")
+            
+            if self._config.url:
+                # Remote connection
+                client = QdrantClientClass(
+                    url=self._config.url,
+                    api_key=self._config.api_key,
+                    timeout=min(10.0, self._config.timeout),  # Shorter timeout for emergency
+                    prefer_grpc=False  # Use HTTP for emergency (more reliable)
+                )
+            else:
+                # Local connection - very risky for file-based storage
+                logger.error("Emergency local connection not safe for file-based Qdrant")
+                raise QdrantConnectionError("Cannot create emergency local connection safely")
+            
+            # Quick connection test
+            await asyncio.wait_for(
+                asyncio.to_thread(client.get_collections),
+                timeout=5.0
+            )
+            
+            logger.warning("Emergency connection established - use with caution")
+            return client
+            
+        except Exception as e:
+            logger.error(f"Emergency connection failed: {e}")
+            raise QdrantConnectionError(f"Emergency connection failed: {e}")
     
     async def _get_connection_for_strategy(self, strategy: ConnectionStrategy) -> Any:
         """Get connection using specific strategy (for fallback and hybrid modes)."""
@@ -462,42 +555,93 @@ class UnifiedQdrantManager:
             raise QdrantConnectionError(f"Cannot get connection for strategy: {strategy}")
     
     async def _create_qdrant_client(self) -> Any:  # QdrantClient
-        """Create a new Qdrant client based on configuration."""
+        """Create a new Qdrant client based on configuration with enhanced error handling."""
         QdrantClientClass = db_deps.QdrantClient
         if QdrantClientClass is None:
             raise QdrantConnectionError("qdrant-client not available")
         
-        try:
-            if self._config.url:
-                # Remote client configuration
-                logger.debug(f"Creating remote Qdrant client for {self._config.url}")
-                client = QdrantClientClass(
-                    url=self._config.url,
-                    api_key=self._config.api_key,
-                    timeout=self._config.timeout,
-                    prefer_grpc=self._config.prefer_grpc
-                )
-            else:
-                # Local client configuration
-                logger.debug(f"Creating local Qdrant client for {self._config.path}")
-                client = QdrantClientClass(
-                    path=self._config.path,
-                    timeout=self._config.timeout
-                )
-            
-            # Test the connection
+        max_retries = self._config.retry_attempts
+        retry_delay = self._config.retry_backoff
+        
+        for attempt in range(max_retries):
             try:
-                collections = client.get_collections()
-                logger.debug(f"Connection test successful: {len(collections.collections)} collections")
-            except Exception as test_error:
-                logger.warning(f"Connection test failed: {test_error}")
-                # Don't fail here, connection might still be usable
-            
-            return client
-            
-        except Exception as e:
-            logger.error(f"Failed to create Qdrant client: {e}")
-            raise QdrantConnectionError(f"Client creation failed: {e}")
+                if self._config.url:
+                    # Remote client configuration
+                    logger.debug(f"Creating remote Qdrant client for {self._config.url} (attempt {attempt + 1})")
+                    client = QdrantClientClass(
+                        url=self._config.url,
+                        api_key=self._config.api_key,
+                        timeout=self._config.timeout,
+                        prefer_grpc=self._config.prefer_grpc
+                    )
+                else:
+                    # Local client configuration - handle "already accessed" errors
+                    logger.debug(f"Creating local Qdrant client for {self._config.path} (attempt {attempt + 1})")
+                    try:
+                        client = QdrantClientClass(
+                            path=self._config.path,
+                            timeout=self._config.timeout
+                        )
+                    except Exception as local_error:
+                        if "already accessed" in str(local_error):
+                            logger.warning(f"QdrantLocal 'already accessed' error on attempt {attempt + 1}: {local_error}")
+                            if attempt < max_retries - 1:
+                                await asyncio.sleep(retry_delay * (2 ** attempt))
+                                continue
+                            else:
+                                raise QdrantConnectionError(
+                                    f"QdrantLocal storage path {self._config.path} is being used by another process. "
+                                    "Only one Qdrant client instance can access local storage at a time."
+                                )
+                        else:
+                            raise
+                
+                # Test the connection with timeout
+                try:
+                    collections = await asyncio.wait_for(
+                        asyncio.to_thread(client.get_collections),
+                        timeout=min(10.0, self._config.timeout)  # Quick connection test
+                    )
+                    logger.debug(f"Connection test successful: {len(collections.collections)} collections")
+                    return client
+                    
+                except asyncio.TimeoutError:
+                    logger.warning(f"Connection test timeout on attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        try:
+                            client.close()
+                        except:
+                            pass
+                        await asyncio.sleep(retry_delay * (2 ** attempt))
+                        continue
+                    else:
+                        raise QdrantConnectionError("Connection test timeout after all retries")
+                        
+                except Exception as test_error:
+                    logger.warning(f"Connection test failed on attempt {attempt + 1}: {test_error}")
+                    if attempt < max_retries - 1:
+                        try:
+                            client.close()
+                        except:
+                            pass
+                        await asyncio.sleep(retry_delay * (2 ** attempt))
+                        continue
+                    else:
+                        # Last attempt - return client anyway, might still be usable
+                        logger.warning("Connection test failed but returning client for final attempt")
+                        return client
+                
+            except Exception as e:
+                logger.warning(f"Client creation attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay * (2 ** attempt))
+                    continue
+                else:
+                    logger.error(f"Failed to create Qdrant client after {max_retries} attempts: {e}")
+                    raise QdrantConnectionError(f"Client creation failed after {max_retries} attempts: {e}")
+        
+        # Should never reach here
+        raise QdrantConnectionError("Unexpected error in client creation loop")
     
     async def _initialize_connection_pool(self) -> None:
         """Initialize connection pool for high-concurrency scenarios."""
@@ -636,8 +780,21 @@ class UnifiedQdrantManager:
         logger.info("Connection cleanup completed")
     
     async def close(self) -> None:
-        """Gracefully shutdown the connection manager."""
-        await self._cleanup_connections()
+        """Gracefully shutdown the connection manager with timeout protection."""
+        logger.info("Shutting down UnifiedQdrantManager")
+        
+        try:
+            # Set shutdown timeout to prevent hanging
+            await asyncio.wait_for(
+                self._cleanup_connections(),
+                timeout=30.0  # 30 second shutdown timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Connection cleanup timed out during shutdown - forcing closure")
+        except Exception as e:
+            logger.error(f"Error during connection cleanup: {e}")
+        
+        # Reset state regardless of cleanup success
         self._config = None
         self._strategy = None
         self._client_initialized = False
@@ -875,13 +1032,22 @@ async def qdrant_connection(config: Optional[Any] = None) -> AsyncContextManager
 
 async def close_unified_qdrant_manager() -> None:
     """
-    Gracefully shutdown the unified connection manager.
+    Gracefully shutdown the unified connection manager with timeout protection.
     
     Use this function during application shutdown to ensure all connections
     are properly closed and resources are cleaned up.
     """
-    await _unified_manager.close()
-    logger.info("Unified Qdrant Manager shutdown completed")
+    try:
+        await asyncio.wait_for(
+            _unified_manager.close(),
+            timeout=45.0  # 45 second global shutdown timeout
+        )
+        logger.info("Unified Qdrant Manager shutdown completed successfully")
+    except asyncio.TimeoutError:
+        logger.warning("Unified Qdrant Manager shutdown timed out - forcing exit")
+    except Exception as e:
+        logger.error(f"Error shutting down Unified Qdrant Manager: {e}")
+        # Continue anyway to avoid hanging on shutdown
 
 
 # Export the new standard API

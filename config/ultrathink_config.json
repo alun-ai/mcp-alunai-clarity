@@ -1,0 +1,37 @@
+{
+  "enabled": true,
+  "minimum_confidence": 0.7,
+  "ultrathink_directive": "\n\n\ud83e\udde0 **Enhanced Thinking Mode Enabled**: Please engage ultrathink mode for this complex reasoning task. Take time to think through each step carefully, consider multiple perspectives, and provide detailed analysis.",
+  "custom_patterns": [],
+  "pattern_weights": {
+    "high_confidence": [
+      "structured",
+      "step.by.step",
+      "systematic",
+      "comprehensive"
+    ],
+    "medium_confidence": [
+      "complex",
+      "multiple",
+      "thorough",
+      "detailed"
+    ],
+    "low_confidence": [
+      "approach",
+      "analyze",
+      "consider",
+      "evaluate"
+    ]
+  },
+  "confidence_scores": {
+    "high_confidence": 0.3,
+    "medium_confidence": 0.2,
+    "low_confidence": 0.1
+  },
+  "exclusion_patterns": [
+    "\\bquick\\s+(question|answer)\\b",
+    "\\bsimple\\s+(question|answer|task)\\b",
+    "\\bjust\\s+(need|want|checking)\\b",
+    "\\bbrief\\s+(summary|overview)\\b"
+  ]
+}

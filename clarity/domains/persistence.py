@@ -30,6 +30,11 @@ from clarity.shared.infrastructure import (
     get_cache,
     cached
 )
+from clarity.shared.infrastructure.unified_qdrant import (
+    get_qdrant_connection, 
+    UnifiedConnectionConfig,
+    ConnectionStrategy
+)
 from clarity.shared.infrastructure.connection_pool import (
     ConnectionConfig, 
     get_connection_pool, 
@@ -86,6 +91,9 @@ class QdrantPersistenceDomain:
         self.embedding_model = None
         self.connection_pool = None
         self._client_initialization_lock = None
+        self._unified_config = None
+        self._connection_healthy = False
+        self._last_health_check = 0
         
         # Initialize caches
         self.embedding_cache = get_cache(
@@ -106,30 +114,39 @@ class QdrantPersistenceDomain:
         try:
             logger.info("Initializing Qdrant persistence domain...")
             
-            # Initialize connection pool configuration but don't establish connection yet
+            # Create unified connection configuration
+            self._unified_config = UnifiedConnectionConfig(
+                url=self.qdrant_config.get("url"),
+                path=self.qdrant_path,
+                api_key=self.qdrant_config.get("api_key"),
+                timeout=self.qdrant_config.get("timeout", 30.0),
+                prefer_grpc=self.qdrant_config.get("prefer_grpc", True),
+                strategy=None,  # Auto-detect optimal strategy
+                enable_health_checks=True,
+                enable_metrics=True,
+                connection_cache_ttl=300.0  # 5 minutes
+            )
+            
+            # Initialize legacy connection pool configuration for backward compatibility
             self.pool_config = ConnectionConfig(
                 url=self.qdrant_config.get("url"),
-                path=self.qdrant_path,  # Always use path when configured
+                path=self.qdrant_path,
                 api_key=self.qdrant_config.get("api_key"),
                 timeout=self.qdrant_config.get("timeout", 30.0),
                 prefer_grpc=self.qdrant_config.get("prefer_grpc", True)
             )
             
-            # Store connection pool but don't initialize it yet (lazy)
+            # Store connection pool but don't initialize it yet (legacy support)
             self.connection_pool = await get_connection_pool(self.pool_config)
-            # NOTE: Removed await self.connection_pool.initialize() - will happen on first use
             
-            # Don't establish Qdrant client connection yet - true lazy initialization
-            # The client will be created on first vector operation
+            # Don't establish connections yet - true lazy initialization
             self.client = None
             self._client_initialized = False
+            self._connection_healthy = False
             
             # Initialize embedding model lazily (will be loaded on first use)
             self.embedding_model = None
             logger.debug(f"Embedding model {self.embedding_model_name} will be loaded lazily")
-            
-            # Don't ensure collection exists yet - will be done on first vector operation
-            # NOTE: Removed await self._ensure_collection() call
             
             logger.info("Qdrant persistence domain initialized successfully (connection deferred)")
             
@@ -444,7 +461,7 @@ class QdrantPersistenceDomain:
     
     async def store_memory(self, memory: Dict[str, Any], tier: str = "short_term") -> str:
         """
-        Store a memory in Qdrant.
+        Store a memory in Qdrant with timeout protection and connection recovery.
         
         Args:
             memory: Memory data to store
@@ -453,9 +470,9 @@ class QdrantPersistenceDomain:
         Returns:
             Memory ID
         """
+        import asyncio
+        
         try:
-            # Ensure Qdrant client is initialized on first vector operation
-            await self._ensure_client_initialized()
             # Prepare payload and extract text
             payload, text_content = self._prepare_memory_payload(memory)
             memory_id = payload["memory_id"]
@@ -471,16 +488,25 @@ class QdrantPersistenceDomain:
             # Create point using centralized method
             point = self._create_qdrant_point(memory_id, embedding, payload)
             
-            # Store in Qdrant using connection pool
-            async with qdrant_connection() as client:
-                client.upsert(
+            # Ensure Qdrant client is initialized on first vector operation
+            await self._ensure_client_initialized()
+            
+            # Use the established client with timeout protection  
+            await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.client.upsert,
                     collection_name=self.COLLECTION_NAME,
                     points=[point]
-                )
+                ),
+                timeout=30.0  # 30-second timeout to prevent hanging
+            )
             
             logger.debug(f"Stored memory in Qdrant: {memory_id}")
             return memory_id
             
+        except asyncio.TimeoutError:
+            logger.error(f"store_memory operation timed out after 30 seconds for memory {memory.get('type', 'unknown')}")
+            raise MemoryOperationError("Memory storage operation timed out")
         except (QdrantConnectionError, MemoryOperationError, ValueError, RuntimeError) as e:
             logger.error(f"Failed to store memory: {e}")
             raise MemoryOperationError("Failed to store memory", cause=e)
