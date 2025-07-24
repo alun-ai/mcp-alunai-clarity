@@ -182,6 +182,14 @@ class QdrantPersistenceDomain:
             logger.error(f"Failed to initialize Qdrant persistence domain: {e}")
             raise
     
+    async def _recover_connection(self) -> None:
+        """Recover from a closed Qdrant connection by forcing re-initialization."""
+        logger.warning("Recovering Qdrant connection due to 'instance is closed' error")
+        self.client = None
+        self._client_initialized = False
+        await self._ensure_client_initialized()
+        logger.info("Qdrant connection recovered successfully")
+
     async def _ensure_client_initialized(self) -> None:
         """Ensure Qdrant client is initialized on first vector operation (thread-safe)."""
         if self.client is not None and self._client_initialized:
@@ -562,8 +570,30 @@ class QdrantPersistenceDomain:
             logger.error(f"store_memory operation timed out after 30 seconds for memory {memory.get('type', 'unknown')}")
             raise MemoryOperationError("Memory storage operation timed out")
         except (QdrantConnectionError, MemoryOperationError, ValueError, RuntimeError) as e:
-            logger.error(f"Failed to store memory: {e}")
-            raise MemoryOperationError("Failed to store memory", cause=e)
+            # Check if this is a recoverable connection error
+            if "instance is closed" in str(e).lower() or "connection" in str(e).lower():
+                try:
+                    await self._recover_connection()
+                    
+                    # Retry the operation once with the recovered connection
+                    await asyncio.wait_for(
+                        asyncio.to_thread(
+                            self.client.upsert,
+                            collection_name=self.COLLECTION_NAME,
+                            points=[point]
+                        ),
+                        timeout=30.0
+                    )
+                    
+                    logger.info(f"Successfully stored memory after connection recovery: {memory_id}")
+                    return memory_id
+                    
+                except Exception as retry_error:
+                    logger.error(f"Connection recovery failed: {retry_error}")
+                    raise MemoryOperationError(f"Failed to store memory after connection recovery: {retry_error}")
+            else:
+                logger.error(f"Failed to store memory: {e}")
+                raise MemoryOperationError("Failed to store memory", cause=e)
     
     async def retrieve_memories(
         self,
