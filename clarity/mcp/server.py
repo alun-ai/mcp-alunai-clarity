@@ -700,6 +700,132 @@ class MemoryMcpServer:
             except Exception as e:
                 logger.error(f"Error in analyze_thought_relationships: {str(e)}")
                 return MCPResponseBuilder.error(str(e))
+
+        @self.app.tool()
+        async def sequential_thinking(
+            task: str,
+            session_id: Optional[str] = None,
+            context: Optional[str] = None,
+            thinking_style: str = "systematic"
+        ) -> str:
+            """
+            Native sequential thinking tool for step-by-step problem analysis.
+            
+            Inspired by mcp-sequential-thinking but integrated with alunai-clarity's capabilities.
+            Provides systematic, multi-stage thinking process for complex problems.
+            
+            Args:
+                task: The problem or task to analyze systematically
+                session_id: Optional session identifier for continuity
+                context: Additional context about the task
+                thinking_style: Style of thinking ("systematic", "creative", "analytical")
+            """
+            try:
+                import time
+                start_time = time.time()
+                
+                if not self.domain_manager or not hasattr(self.domain_manager, 'structured_thinking_domain'):
+                    return MCPResponseBuilder.error("Structured thinking domain not available")
+                
+                # Create a unique session ID if not provided
+                if not session_id:
+                    from datetime import datetime
+                    session_id = f"seq_thinking_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                
+                # Enhanced sequential thinking process with 5 structured stages
+                thinking_stages = [
+                    {
+                        "stage": "problem_analysis",
+                        "prompt": f"Analyze the core problem: {task}. Break down the key components, identify what needs to be solved, and clarify the scope.",
+                        "focus": "Understanding and decomposition"
+                    },
+                    {
+                        "stage": "context_exploration", 
+                        "prompt": f"Explore the context around: {task}. Consider constraints, available resources, stakeholders, and environmental factors.",
+                        "focus": "Context and constraints"
+                    },
+                    {
+                        "stage": "solution_generation",
+                        "prompt": f"Generate potential approaches for: {task}. Brainstorm multiple solution paths, considering different methodologies and strategies.",
+                        "focus": "Creative solution exploration"
+                    },
+                    {
+                        "stage": "evaluation_analysis",
+                        "prompt": f"Evaluate the solutions for: {task}. Assess feasibility, risks, benefits, trade-offs, and implementation complexity.",
+                        "focus": "Critical evaluation"
+                    },
+                    {
+                        "stage": "implementation_planning",
+                        "prompt": f"Create implementation plan for: {task}. Define concrete steps, dependencies, milestones, and success criteria.",
+                        "focus": "Actionable planning"
+                    }
+                ]
+                
+                # Store the thinking session
+                thinking_results = []
+                
+                for i, stage_info in enumerate(thinking_stages, 1):
+                    stage_result = await self.domain_manager.structured_thinking_domain.process_structured_thought(
+                        stage=stage_info["stage"],
+                        content=stage_info["prompt"],
+                        thought_number=i,
+                        session_id=session_id,
+                        total_expected=len(thinking_stages),
+                        tags=["sequential_thinking", thinking_style],
+                        axioms=[f"Focus: {stage_info['focus']}"],
+                        relationships=[{
+                            "type": "sequential_stage",
+                            "stage_number": i,
+                            "total_stages": len(thinking_stages)
+                        }]
+                    )
+                    
+                    thinking_results.append({
+                        "stage": stage_info["stage"],
+                        "stage_number": i,
+                        "focus": stage_info["focus"],
+                        "content": stage_info["prompt"],
+                        "result": stage_result
+                    })
+                
+                # Generate a comprehensive summary
+                summary_result = await self.domain_manager.structured_thinking_domain.generate_thinking_summary(
+                    session_id=session_id,
+                    include_relationships=True,
+                    include_stage_summaries=True
+                )
+                
+                # Create the final response
+                response = {
+                    "session_id": session_id,
+                    "task": task,
+                    "thinking_style": thinking_style,
+                    "stages_completed": len(thinking_stages),
+                    "thinking_process": thinking_results,
+                    "summary": summary_result,
+                    "context": context,
+                    "execution_time": time.time() - start_time
+                }
+                
+                # Trigger hooks for sequential thinking completion
+                execution_time = time.time() - start_time
+                await self._trigger_tool_hooks(
+                    tool_name="sequential_thinking",
+                    arguments={
+                        "task": task,
+                        "session_id": session_id,
+                        "context": context,
+                        "thinking_style": thinking_style
+                    },
+                    result=response,
+                    execution_time=execution_time
+                )
+                
+                return MCPResponseBuilder.sequential_thinking_completed(response)
+                
+            except Exception as e:
+                logger.error(f"Error in sequential_thinking: {str(e)}")
+                return MCPResponseBuilder.error(str(e))
         
         logger.info("Structured thinking tools registered successfully")
 
@@ -1669,7 +1795,7 @@ class MemoryMcpServer:
         our_tools = {
             "store_memory", "retrieve_memory", "list_memories", "update_memory", "delete_memory",
             "memory_stats", "process_structured_thought", "generate_thinking_summary", 
-            "continue_thinking_process", "analyze_thought_relationships", "suggest_command",
+            "continue_thinking_process", "analyze_thought_relationships", "sequential_thinking", "suggest_command",
             "get_project_patterns", "find_similar_sessions", "get_continuation_context",
             "suggest_workflow_optimizations", "get_learning_progression", "autocode_stats",
             "qdrant_performance_stats", "optimize_qdrant_collection", "suggest_memory_queries",

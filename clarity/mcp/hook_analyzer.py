@@ -266,18 +266,13 @@ Original request: {prompt}"""
 
 🧠 **PROCEDURAL THINKING ACTIVATED**
 
-Use the `mcp__sequential-thinking__sequentialthinking` tool to systematically analyze this request:
+Use the `sequential_thinking` tool to systematically analyze this request:
 
 **Request:** {prompt[:200]}{'...' if len(prompt) > 200 else ''}
 **Session:** {session_id}
 **Context:** {cwd}
 
-**Analysis Instructions:**
-1. Break down the request into logical components
-2. Identify dependencies and prerequisites  
-3. Create a step-by-step approach
-4. Consider potential challenges and solutions
-5. Provide structured recommendations
+sequential_thinking --task "{prompt[:100]}{'...' if len(prompt) > 100 else ''}" --session-id "{session_id}"
 
 ---
 """

@@ -156,3 +156,22 @@ class SafeJSONHandler:
             return json.dumps(data, ensure_ascii=False)
         except TypeError:
             return default
+    
+    @staticmethod
+    def sequential_thinking_completed(thinking_result: Dict[str, Any]) -> str:
+        """Create a response for completed sequential thinking analysis
+        
+        Args:
+            thinking_result: Dictionary containing the sequential thinking results
+            
+        Returns:
+            JSON string representing sequential thinking completion
+        """
+        response = {
+            "success": True,
+            "type": "sequential_thinking",
+            "result": thinking_result,
+            "message": f"Sequential thinking completed for session {thinking_result.get('session_id', 'unknown')}"
+        }
+        
+        return json.dumps(response)
