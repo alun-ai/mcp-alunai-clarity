@@ -2134,6 +2134,19 @@ Stages Completed:
             # Create hook configuration that executes via Docker container
             hook_config = {
                 "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "*",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": f"docker exec {container_name} python /app/clarity/mcp/hook_analyzer.py --post-tool --tool={{tool_name}} --result={{result}}",
+                                    "timeout_ms": 3000,
+                                    "continue_on_error": True
+                                }
+                            ]
+                        }
+                    ],
                     "UserPromptSubmit": [
                         {
                             "matcher": "*",
