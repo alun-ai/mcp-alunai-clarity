@@ -1403,6 +1403,35 @@ Stages Completed:
             """Automatically check for and return relevant memories based on current context."""
             try:
                 import time
+                import asyncio
+                start_time = time.time()
+                relevant_memories = []
+                
+                # Overall timeout to prevent hook cancellation
+                async def _check_memories_with_timeout():
+                    return await asyncio.wait_for(
+                        self._check_relevant_memories_impl(context, auto_execute, min_similarity),
+                        timeout=25.0  # 25s total timeout to fit within 30s hook timeout
+                    )
+                
+                return await _check_memories_with_timeout()
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"check_relevant_memories overall timeout exceeded")
+                return MCPResponseBuilder.error("Memory check timed out - please try with a more specific context")
+            except (MemoryOperationError, ValidationError, AttributeError) as e:
+                logger.error(f"Error in check_relevant_memories: {str(e)}")
+                return MCPResponseBuilder.error(str(e))
+        
+        async def _check_relevant_memories_impl(
+            self,
+            context: Dict[str, Any],
+            auto_execute: bool = True,
+            min_similarity: float = 0.6
+        ) -> str:
+            """Implementation of check_relevant_memories with timeout protection."""
+            try:
+                import time
                 start_time = time.time()
                 relevant_memories = []
                 
@@ -1436,21 +1465,39 @@ Stages Completed:
                     directory = context["directory"]
                     queries.append(f"directory {Path(directory).name}")
                 
-                # Execute memory retrieval for each query
+                # Execute memory retrieval for each query with timeout protection
                 if auto_execute:
+                    import asyncio
+                    total_timeout = 20.0  # Total timeout for all queries to fit within hook timeout
+                    per_query_timeout = min(total_timeout / max(len(queries), 1), 8.0)  # Max 8s per query
+                    
                     for query in queries:
-                        memories = await self.domain_manager.retrieve_memories(
-                            query=query,
-                            limit=3,
-                            min_similarity=min_similarity,
-                            include_metadata=True
-                        )
-                        
-                        if memories:
-                            relevant_memories.extend([{
-                                "query": query,
-                                "memories": memories
-                            }])
+                        try:
+                            # Add timeout protection for each memory retrieval
+                            memories = await asyncio.wait_for(
+                                self.domain_manager.retrieve_memories(
+                                    query=query,
+                                    limit=3,
+                                    min_similarity=min_similarity,
+                                    include_metadata=True
+                                ),
+                                timeout=per_query_timeout
+                            )
+                            
+                            if memories:
+                                relevant_memories.extend([{
+                                    "query": query,
+                                    "memories": memories
+                                }])
+                                
+                        except asyncio.TimeoutError:
+                            logger.warning(f"Memory retrieval timeout for query: {query[:50]}...")
+                            # Continue with next query instead of failing entirely
+                            continue
+                        except Exception as e:
+                            logger.warning(f"Memory retrieval error for query '{query[:50]}...': {e}")
+                            # Continue with next query instead of failing entirely
+                            continue
                 
                 result = {
                     "context": context,
@@ -1474,8 +1521,9 @@ Stages Completed:
                 )
                 
                 return MCPResponseBuilder.success(result)
+                
             except (MemoryOperationError, ValidationError, AttributeError) as e:
-                logger.error(f"Error in check_relevant_memories: {str(e)}")
+                logger.error(f"Error in _check_relevant_memories_impl: {str(e)}")
                 return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
