@@ -460,10 +460,17 @@ class MemoryMcpServer:
                 start_time = time.time()
                 
                 # Query memories directly to get thinking session data
+                # Try both field names for backwards compatibility
+                from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterCondition
+                
                 session_filter = Filter(
-                    must=[
+                    should=[
                         FieldCondition(
                             key="metadata.thinking_session_id",
+                            match=MatchValue(value=session_id)
+                        ),
+                        FieldCondition(
+                            key="metadata.session_id",
                             match=MatchValue(value=session_id)
                         )
                     ]
@@ -480,48 +487,82 @@ class MemoryMcpServer:
                 if not results[0]:
                     return json.dumps({"success": False, "error": f"No thinking session found with id: {session_id}"})
                 
-                # Process memories directly without creating enum objects
+                # Process memories to extract session information
                 thoughts_data = []
                 stages_set = set()
+                session_info = {}
+                session_memories = []
                 
                 for point in results[0]:
                     payload = point.payload
                     metadata = payload.get("metadata", {})
+                    memory_type = payload.get("memory_type", "")
                     
                     # Skip relationship memories
-                    if payload.get("memory_type") == "thinking_relationship":
+                    if memory_type == "thinking_relationship":
                         continue
                     
-                    # Ensure all values are JSON serializable
-                    thought_data = {
-                        "thought_number": int(metadata.get("thought_number", 0)),
-                        "stage": str(metadata.get("thinking_stage", "unknown")),
-                        "content_preview": str(payload.get("content", ""))[:100] + ("..." if len(str(payload.get("content", ""))) > 100 else ""),
-                        "tags": [str(tag) for tag in metadata.get("tags", [])],
-                        "axioms": [str(axiom) for axiom in metadata.get("axioms", [])],
-                        "assumptions_challenged": [str(assumption) for assumption in metadata.get("assumptions_challenged", [])]
-                    }
+                    # Collect session summary info
+                    if memory_type in ["sequential_thinking_session", "structured_thinking_session"]:
+                        session_info = {
+                            "task": str(metadata.get("task", "Unknown task")),
+                            "thinking_style": str(metadata.get("thinking_style", "systematic")),
+                            "stages_count": int(metadata.get("stages_count", 0)),
+                            "execution_time": float(metadata.get("execution_time", 0))
+                        }
+                        session_memories.append({
+                            "memory_type": memory_type,
+                            "content": str(payload.get("content", "")),
+                            "metadata": metadata
+                        })
+                        continue
                     
-                    thoughts_data.append(thought_data)
-                    stages_set.add(str(metadata.get("thinking_stage", "unknown")))
+                    # Process thinking stage memories
+                    if memory_type in ["sequential_thinking_stage", "structured_thinking"]:
+                        stage_name = str(metadata.get("stage", metadata.get("thinking_stage", "unknown")))
+                        thought_data = {
+                            "memory_type": memory_type,
+                            "thought_number": int(metadata.get("thought_number", metadata.get("stage_number", 0))),
+                            "stage": stage_name,
+                            "content": str(payload.get("content", "")),
+                            "content_preview": str(payload.get("content", ""))[:200] + ("..." if len(str(payload.get("content", ""))) > 200 else ""),
+                            "focus": str(metadata.get("focus", "")),
+                            "tags": [str(tag) for tag in metadata.get("tags", [])],
+                            "axioms": [str(axiom) for axiom in metadata.get("axioms", [])],
+                            "assumptions_challenged": [str(assumption) for assumption in metadata.get("assumptions_challenged", [])]
+                        }
+                        
+                        thoughts_data.append(thought_data)
+                        stages_set.add(stage_name)
                 
                 # Sort by thought number
                 thoughts_data.sort(key=lambda x: x.get("thought_number", 0))
                 
-                # Create summary without any enum objects
+                # Create comprehensive summary
                 summary_data = {
                     "success": True,
                     "session_id": str(session_id),
                     "title": f"Thinking Session {session_id[-8:]}",
+                    "session_info": session_info,
                     "total_thoughts": len(thoughts_data),
                     "stages_completed": sorted(list(stages_set)),
-                    "thoughts_summary": thoughts_data,
+                    "thoughts_summary": thoughts_data if include_stage_summaries else [
+                        {"stage": t["stage"], "content_preview": t["content_preview"]} for t in thoughts_data
+                    ],
+                    "session_memories": session_memories if include_stage_summaries else [],
                     "session_complete": len(stages_set) >= 3,
                     "relationship_analysis": {
                         "total_relationships": 0,  
-                        "thoughts_with_relationships": 0
+                        "thoughts_with_relationships": 0,
+                        "enabled": include_relationships
                     },
                     "confidence_score": 0.8 + (len(stages_set) * 0.05),
+                    "metadata": {
+                        "generation_time": time.time() - start_time,
+                        "memories_found": len(results[0]),
+                        "include_relationships": include_relationships,
+                        "include_stage_summaries": include_stage_summaries
+                    },
                     "status": "Session summary generated successfully"
                 }
                 
@@ -774,7 +815,8 @@ class MemoryMcpServer:
                         content=f"Stage {i}: {stage_info['stage']} - {stage_info['prompt']}",
                         importance=0.8,
                         metadata={
-                            "session_id": session_id,
+                            "thinking_session_id": session_id,
+                            "session_id": session_id,  # Keep for backwards compatibility
                             "stage": stage_info["stage"],
                             "stage_number": i,
                             "total_stages": len(thinking_stages),
@@ -807,7 +849,8 @@ Stages Completed:
                     content=session_summary,
                     importance=0.9,
                     metadata={
-                        "session_id": session_id,
+                        "thinking_session_id": session_id,
+                        "session_id": session_id,  # Keep for backwards compatibility
                         "task": task,
                         "thinking_style": thinking_style,
                         "stages_count": len(thinking_stages),
