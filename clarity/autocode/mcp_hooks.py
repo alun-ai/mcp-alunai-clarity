@@ -42,16 +42,37 @@ class MCPAwarenessHooks:
         logger.info("Initializing MCP tool awareness hooks...")
         
         try:
+            # Start MCP tool indexing in background (non-blocking)
+            import asyncio
+            logger.info("Starting background MCP tool indexing...")
+            asyncio.create_task(self._background_index_tools())
+            
+            # Initialize with empty tools for now - will be populated by background task
+            self.indexed_tools = {}
+            
+            logger.info("MCP awareness initialized (background indexing started)")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize MCP awareness: {e}")
+            self.indexed_tools = {}
+    
+    async def _background_index_tools(self) -> None:
+        """Index MCP tools in background without blocking initialization."""
+        try:
+            logger.info("Background MCP tool indexing started...")
+            
             # Index available MCP tools
-            self.indexed_tools = await self.tool_indexer.discover_and_index_tools()
+            indexed_tools = await self.tool_indexer.discover_and_index_tools()
+            self.indexed_tools = indexed_tools
             
             # Store system-level memory about MCP availability
             await self._store_mcp_system_memory()
             
-            logger.info(f"MCP awareness initialized with {len(self.indexed_tools)} tools")
+            logger.info(f"Background MCP indexing completed with {len(self.indexed_tools)} tools")
             
         except Exception as e:
-            logger.error(f"Failed to initialize MCP awareness: {e}")
+            logger.error(f"Background MCP tool indexing failed: {e}")
+            self.indexed_tools = {}
     
     async def on_user_request(self, request: str, context: Dict[str, Any]) -> Optional[str]:
         """

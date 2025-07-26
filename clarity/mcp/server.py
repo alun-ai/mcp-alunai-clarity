@@ -82,43 +82,101 @@ class MemoryMcpServer:
         ) -> str:
             """Store new information in memory."""
             try:
-                logger.info(f"🔍 DEBUG: store_memory called for type='{memory_type}'")
-                
-                # Ensure domains are initialized lazily on first memory operation
-                logger.info(f"🔍 DEBUG: About to call _lazy_initialize_domains()")
-                await self._lazy_initialize_domains()
-                logger.info(f"🔍 DEBUG: _lazy_initialize_domains() completed")
-                
                 import time
+                import asyncio
                 start_time = time.time()
-                logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory()")
                 
-                memory_id = await self.domain_manager.store_memory(
-                    memory_type=memory_type,
-                    content=content,
-                    importance=importance,
-                    metadata=metadata or {},
-                    context=context or {}
-                )
+                # Overall timeout to prevent hook cancellation
+                async def _store_memory_with_timeout():
+                    return await asyncio.wait_for(
+                        self._store_memory_impl(memory_type, content, importance, metadata, context),
+                        timeout=25.0  # 25s total timeout to fit within 30s hook timeout
+                    )
                 
-                # Trigger hooks for automatic session tracking
-                execution_time = time.time() - start_time
-                await self._trigger_tool_hooks(
-                    tool_name="store_memory",
-                    arguments={
-                        "memory_type": memory_type,
-                        "content": content,
-                        "importance": importance,
-                        "metadata": metadata,
-                        "context": context
-                    },
-                    result=memory_id,
-                    execution_time=execution_time
-                )
+                return await _store_memory_with_timeout()
                 
-                return MCPResponseBuilder.memory_stored(memory_id)
+            except asyncio.TimeoutError:
+                logger.warning(f"store_memory overall timeout exceeded")
+                return MCPResponseBuilder.error("Memory storage timed out - please try again")
             except Exception as e:
                 logger.error(f"Error in store_memory: {str(e)}")
+                return MCPResponseBuilder.error(str(e))
+        
+        async def _store_memory_impl(
+            self,
+            memory_type: str,
+            content: str,
+            importance: float = 0.5,
+            metadata: Optional[Dict[str, Any]] = None,
+            context: Optional[Dict[str, Any]] = None
+        ) -> str:
+            """Implementation of store_memory with timeout protection."""
+            try:
+                import time
+                import asyncio
+                start_time = time.time()
+                
+                logger.info(f"🔍 DEBUG: store_memory called for type='{memory_type}'")
+                
+                # Domain initialization with timeout protection
+                logger.info(f"🔍 DEBUG: About to call _lazy_initialize_domains()")
+                try:
+                    await asyncio.wait_for(
+                        self._lazy_initialize_domains(),
+                        timeout=10.0  # Allow up to 10s for domain initialization (reduced from 20s)
+                    )
+                    logger.info(f"🔍 DEBUG: _lazy_initialize_domains() completed")
+                except asyncio.TimeoutError:
+                    logger.warning("Domain initialization timed out")
+                    return MCPResponseBuilder.error("Memory system initialization timed out - please try again")
+                
+                logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory()")
+                
+                # Memory storage with timeout protection
+                try:
+                    memory_id = await asyncio.wait_for(
+                        self.domain_manager.store_memory(
+                            memory_type=memory_type,
+                            content=content,
+                            importance=importance,
+                            metadata=metadata or {},
+                            context=context or {}
+                        ),
+                        timeout=5.0  # Allow up to 5s for memory storage (increased from 3s)
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Memory storage operation timed out")
+                    return MCPResponseBuilder.error("Memory storage timed out - please try again")
+                
+                # Hook triggering with timeout protection (optional, can fail gracefully)
+                execution_time = time.time() - start_time
+                try:
+                    await asyncio.wait_for(
+                        self._trigger_tool_hooks(
+                            tool_name="store_memory",
+                            arguments={
+                                "memory_type": memory_type,
+                                "content": content,
+                                "importance": importance,
+                                "metadata": metadata,
+                                "context": context
+                            },
+                            result=memory_id,
+                            execution_time=execution_time
+                        ),
+                        timeout=2.0  # Allow up to 2s for hook execution
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Hook execution timed out, but memory was stored successfully")
+                    # Continue - memory was stored successfully even if hooks failed
+                except Exception as e:
+                    logger.warning(f"Hook execution failed: {e}, but memory was stored successfully")
+                    # Continue - memory was stored successfully even if hooks failed
+                
+                return MCPResponseBuilder.memory_stored(memory_id)
+                
+            except Exception as e:
+                logger.error(f"Error in _store_memory_impl: {str(e)}")
                 return MCPResponseBuilder.error(str(e))
 
         @self.app.tool()
