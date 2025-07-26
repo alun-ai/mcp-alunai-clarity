@@ -185,10 +185,34 @@ class QdrantPersistenceDomain:
     async def _recover_connection(self) -> None:
         """Recover from a closed Qdrant connection by forcing re-initialization."""
         logger.warning("Recovering Qdrant connection due to 'instance is closed' error")
+        
+        # Clean up existing client resources
+        if self.client:
+            try:
+                if hasattr(self.client, 'close'):
+                    self.client.close()
+            except (Exception,) as e:
+                logger.debug(f"Error closing existing client during recovery: {e}")
+        
+        # Reset connection state
         self.client = None
         self._client_initialized = False
-        await self._ensure_client_initialized()
-        logger.info("Qdrant connection recovered successfully")
+        
+        # Force re-initialization with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                await self._ensure_client_initialized()
+                logger.info("Qdrant connection recovered successfully")
+                return
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    wait_time = 1.0 * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"Connection recovery attempt {attempt + 1} failed, retrying in {wait_time}s: {e}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"Failed to recover connection after {max_retries} attempts: {e}")
+                    raise
 
     async def _ensure_client_initialized(self) -> None:
         """Ensure Qdrant client is initialized on first vector operation (thread-safe)."""
@@ -573,16 +597,23 @@ class QdrantPersistenceDomain:
             # Check if this is a recoverable connection error
             if "instance is closed" in str(e).lower() or "connection" in str(e).lower():
                 try:
-                    await self._recover_connection()
+                    logger.info(f"Attempting connection recovery for memory {memory_id}")
                     
-                    # Retry the operation once with the recovered connection
+                    # Use shorter timeout for recovery to prevent hook cancellation
+                    recovery_start = asyncio.get_event_loop().time()
+                    await asyncio.wait_for(self._recover_connection(), timeout=10.0)
+                    recovery_time = asyncio.get_event_loop().time() - recovery_start
+                    
+                    logger.debug(f"Connection recovery completed in {recovery_time:.2f}s")
+                    
+                    # Retry the operation once with the recovered connection (shorter timeout)
                     await asyncio.wait_for(
                         asyncio.to_thread(
                             self.client.upsert,
                             collection_name=self.COLLECTION_NAME,
                             points=[point]
                         ),
-                        timeout=30.0
+                        timeout=15.0  # Reduced from 30s to prevent hook timeout
                     )
                     
                     logger.info(f"Successfully stored memory after connection recovery: {memory_id}")

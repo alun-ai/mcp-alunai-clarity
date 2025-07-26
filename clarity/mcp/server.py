@@ -2184,7 +2184,7 @@ Stages Completed:
                                 {
                                     "type": "command",
                                     "command": f"docker exec {container_name} python /app/clarity/mcp/hook_analyzer.py --post-tool --tool={{tool_name}} --result={{result}}",
-                                    "timeout_ms": 3000,
+                                    "timeout_ms": 30000,  # Increased to 30s to handle connection recovery
                                     "continue_on_error": True
                                 }
                             ]

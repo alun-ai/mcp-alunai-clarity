@@ -302,13 +302,33 @@ class QdrantConnectionPool:
     async def _health_check(self, connection: PooledConnection) -> bool:
         """Perform health check on a connection"""
         try:
-            # Simple health check - get collections
-            connection.client.get_collections()
+            # Check if the client itself is closed/invalid first
+            if not hasattr(connection.client, 'get_collections'):
+                logger.warning(f"Health check failed for connection {connection.connection_id}: Client missing get_collections method")
+                self._stats['failed_health_checks'] += 1
+                return False
+            
+            # For local Qdrant instances, check if the instance is closed
+            if hasattr(connection.client, '_client') and hasattr(connection.client._client, 'is_closed'):
+                if connection.client._client.is_closed():
+                    logger.warning(f"Health check failed for connection {connection.connection_id}: QdrantLocal instance is closed")
+                    self._stats['failed_health_checks'] += 1
+                    return False
+            
+            # Simple health check - get collections with timeout
+            await asyncio.wait_for(
+                asyncio.to_thread(connection.client.get_collections),
+                timeout=5.0
+            )
             self._stats['health_checks'] += 1
             return True
             
-        except (ConnectionError, TimeoutError, RuntimeError, OSError) as e:
-            logger.warning(f"Health check failed for connection {connection.connection_id}: {e}")
+        except (ConnectionError, TimeoutError, RuntimeError, OSError, AttributeError, asyncio.TimeoutError) as e:
+            error_msg = str(e).lower()
+            if "instance is closed" in error_msg:
+                logger.warning(f"Health check failed for connection {connection.connection_id}: QdrantLocal instance is closed. Please create a new instance.")
+            else:
+                logger.warning(f"Health check failed for connection {connection.connection_id}: {e}")
             self._stats['failed_health_checks'] += 1
             return False
     
