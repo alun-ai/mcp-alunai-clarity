@@ -96,11 +96,26 @@ class MemoryMcpServer:
                 return await _store_memory_with_timeout()
                 
             except asyncio.TimeoutError:
-                logger.warning(f"store_memory overall timeout exceeded")
-                return MCPResponseBuilder.error("Memory storage timed out after 25 seconds. This may indicate database connection issues or the embedding model is loading for the first time. Please try again - subsequent attempts should be faster.")
+                logger.warning(f"🔍 DEBUG: store_memory overall timeout exceeded")
+                timeout_response = MCPResponseBuilder.error("Memory storage timed out after 25 seconds. This may indicate database connection issues or the embedding model is loading for the first time. Please try again - subsequent attempts should be faster.")
+                logger.info(f"🔍 DEBUG: Returning timeout response: {timeout_response}")
+                return timeout_response
             except Exception as e:
-                logger.error(f"Error in store_memory: {str(e)}")
-                return MCPResponseBuilder.error(str(e))
+                logger.error(f"🔍 DEBUG: Exception in store_memory: {e}", exc_info=True)
+                
+                # Handle Qdrant internal SQLite persistence errors at top level
+                error_msg = str(e).lower()
+                if "sqlite3.connection" in error_msg and "returned null" in error_msg:
+                    logger.error(f"Caught Qdrant internal SQLite error at top level: {e}")
+                    main_error_response = MCPResponseBuilder.error("Memory storage failed - database internal persistence error. This usually resolves automatically. Please try again in a few seconds.")
+                elif "sqlite3" in error_msg or "database is locked" in error_msg:
+                    logger.error(f"Caught Qdrant SQLite database error at top level: {e}")
+                    main_error_response = MCPResponseBuilder.error("Memory storage failed - database persistence layer issue. Please try again in 5-10 seconds.")
+                else:
+                    main_error_response = MCPResponseBuilder.error(str(e))
+                
+                logger.info(f"🔍 DEBUG: Returning main error response: {main_error_response}")
+                return main_error_response
         
         async def _store_memory_impl(
             memory_type: str,
@@ -115,7 +130,9 @@ class MemoryMcpServer:
                 import asyncio
                 start_time = time.time()
                 
-                logger.info(f"🔍 DEBUG: store_memory called for type='{memory_type}'")
+                logger.info(f"🔍 DEBUG: store_memory called for type='{memory_type}', content preview: {content[:100]}...")
+                logger.info(f"🔍 DEBUG: store_memory metadata: {metadata}")
+                logger.info(f"🔍 DEBUG: store_memory context: {context}")
                 
                 # Domain initialization with timeout protection
                 logger.info(f"🔍 DEBUG: About to call _lazy_initialize_domains()")
@@ -169,6 +186,7 @@ class MemoryMcpServer:
                 
                 # Memory storage with reasonable timeout (connection is healthy)
                 try:
+                    logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory() with timeout=15.0s")
                     memory_id = await asyncio.wait_for(
                         self.domain_manager.store_memory(
                             memory_type=memory_type,
@@ -179,12 +197,22 @@ class MemoryMcpServer:
                         ),
                         timeout=15.0  # Generous timeout for healthy connections (first-time embedding model loading)
                     )
+                    logger.info(f"🔍 DEBUG: domain_manager.store_memory() completed successfully, memory_id: {memory_id}")
                 except asyncio.TimeoutError:
                     logger.warning("Memory storage operation timed out despite healthy connection")
                     return MCPResponseBuilder.error("Memory storage timed out after 15 seconds despite healthy database connection. This typically happens during first-time embedding model loading. Please try again - subsequent operations should be much faster.")
                 except Exception as e:
                     error_msg = str(e).lower()
-                    if "instance is closed" in error_msg:
+                    logger.error(f"🔍 DEBUG: Memory storage exception: {e}", exc_info=True)
+                    
+                    # Handle Qdrant internal SQLite persistence errors
+                    if "sqlite3.connection" in error_msg and "returned null" in error_msg:
+                        logger.error(f"Memory storage failed due to Qdrant internal SQLite issue: {e}")
+                        return MCPResponseBuilder.error("Memory storage failed - database internal persistence error. This usually resolves automatically. Please try again in a few seconds.")
+                    elif "sqlite3" in error_msg or "database is locked" in error_msg:
+                        logger.error(f"Memory storage failed due to Qdrant SQLite database issue: {e}")
+                        return MCPResponseBuilder.error("Memory storage failed - database persistence layer issue. Please try again in 5-10 seconds.")
+                    elif "instance is closed" in error_msg:
                         logger.error(f"Memory storage failed due to closed instance: {e}")
                         return MCPResponseBuilder.error("Memory storage failed - database connection was lost during operation. Connection recovery in progress. Please try again in 10-30 seconds.")
                     elif "connection" in error_msg and ("refused" in error_msg or "reset" in error_msg or "timeout" in error_msg):
@@ -196,7 +224,9 @@ class MemoryMcpServer:
                 
                 # Hook triggering with timeout protection (optional, can fail gracefully)
                 execution_time = time.time() - start_time
+                logger.info(f"🔍 DEBUG: About to trigger hooks for store_memory, execution_time: {execution_time:.3f}s")
                 try:
+                    logger.info(f"🔍 DEBUG: Calling _trigger_tool_hooks for store_memory")
                     await asyncio.wait_for(
                         self._trigger_tool_hooks(
                             tool_name="store_memory",
@@ -212,18 +242,35 @@ class MemoryMcpServer:
                         ),
                         timeout=2.0  # Allow up to 2s for hook execution
                     )
+                    logger.info(f"🔍 DEBUG: Hook execution completed successfully")
                 except asyncio.TimeoutError:
                     logger.warning("Hook execution timed out, but memory was stored successfully")
                     # Continue - memory was stored successfully even if hooks failed
                 except Exception as e:
-                    logger.warning(f"Hook execution failed: {e}, but memory was stored successfully")
+                    logger.warning(f"🔍 DEBUG: Hook execution failed: {e}, but memory was stored successfully", exc_info=True)
                     # Continue - memory was stored successfully even if hooks failed
                 
-                return MCPResponseBuilder.memory_stored(memory_id)
+                logger.info(f"🔍 DEBUG: About to call MCPResponseBuilder.memory_stored({memory_id})")
+                response = MCPResponseBuilder.memory_stored(memory_id)
+                logger.info(f"🔍 DEBUG: MCPResponseBuilder.memory_stored() returned: {response}")
+                return response
                 
             except Exception as e:
-                logger.error(f"Error in _store_memory_impl: {str(e)}")
-                return MCPResponseBuilder.error(str(e))
+                logger.error(f"🔍 DEBUG: Exception in _store_memory_impl: {e}", exc_info=True)
+                
+                # Handle Qdrant internal SQLite persistence errors that bubble up
+                error_msg = str(e).lower()
+                if "sqlite3.connection" in error_msg and "returned null" in error_msg:
+                    logger.error(f"Caught Qdrant internal SQLite error during operation: {e}")
+                    error_response = MCPResponseBuilder.error("Memory storage failed - database internal persistence error. This usually resolves automatically. Please try again in a few seconds.")
+                elif "sqlite3" in error_msg or "database is locked" in error_msg:
+                    logger.error(f"Caught Qdrant SQLite database error during operation: {e}")
+                    error_response = MCPResponseBuilder.error("Memory storage failed - database persistence layer issue. Please try again in 5-10 seconds.")
+                else:
+                    error_response = MCPResponseBuilder.error(str(e))
+                
+                logger.info(f"🔍 DEBUG: Returning error response: {error_response}")
+                return error_response
 
         @self.app.tool()
         async def retrieve_memory(
