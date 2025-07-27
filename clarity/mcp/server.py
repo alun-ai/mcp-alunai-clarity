@@ -612,7 +612,7 @@ class MemoryMcpServer:
                 
                 # Query memories directly to get thinking session data
                 # Try both field names for backwards compatibility
-                from qdrant_client.models import Filter, FieldCondition, MatchValue, FilterCondition
+                from qdrant_client.models import Filter, FieldCondition, MatchValue
                 
                 session_filter = Filter(
                     should=[
