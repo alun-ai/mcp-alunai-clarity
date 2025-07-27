@@ -90,7 +90,7 @@ class MemoryMcpServer:
                 async def _store_memory_with_timeout():
                     return await asyncio.wait_for(
                         _store_memory_impl(memory_type, content, importance, metadata, context),
-                        timeout=28.0  # 28s total timeout to fit within 30s hook timeout
+                        timeout=29.0  # 29s total timeout to fit within 30s hook timeout (account for connection recovery)
                     )
                 
                 return await _store_memory_with_timeout()
@@ -131,7 +131,7 @@ class MemoryMcpServer:
                 
                 logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory()")
                 
-                # Memory storage with timeout protection
+                # Memory storage with timeout protection and connection recovery handling
                 try:
                     memory_id = await asyncio.wait_for(
                         self.domain_manager.store_memory(
@@ -141,11 +141,27 @@ class MemoryMcpServer:
                             metadata=metadata or {},
                             context=context or {}
                         ),
-                        timeout=15.0  # Allow up to 15s for memory storage (includes embedding model loading)
+                        timeout=20.0  # Allow up to 20s for memory storage (includes embedding model + connection recovery)
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("Memory storage operation timed out")
-                    return MCPResponseBuilder.error("Memory storage timed out - please try again")
+                    logger.warning("Memory storage operation timed out (likely due to connection recovery)")
+                    # Try one more time with a quick timeout for already recovered connections
+                    try:
+                        logger.info("Attempting quick retry after timeout...")
+                        memory_id = await asyncio.wait_for(
+                            self.domain_manager.store_memory(
+                                memory_type=memory_type,
+                                content=content,
+                                importance=importance,
+                                metadata=metadata or {},
+                                context=context or {}
+                            ),
+                            timeout=5.0  # Quick retry timeout
+                        )
+                        logger.info("Quick retry succeeded after connection recovery")
+                    except (asyncio.TimeoutError, Exception) as e:
+                        logger.warning(f"Memory storage failed after retry: {e}")
+                        return MCPResponseBuilder.error("Memory storage timed out - Qdrant connection recovery in progress. Please try again in a moment.")
                 
                 # Hook triggering with timeout protection (optional, can fail gracefully)
                 execution_time = time.time() - start_time
