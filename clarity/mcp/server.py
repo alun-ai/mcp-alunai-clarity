@@ -90,7 +90,7 @@ class MemoryMcpServer:
                 async def _store_memory_with_timeout():
                     return await asyncio.wait_for(
                         _store_memory_impl(memory_type, content, importance, metadata, context),
-                        timeout=25.0  # 25s total timeout to fit within 30s hook timeout
+                        timeout=28.0  # 28s total timeout to fit within 30s hook timeout
                     )
                 
                 return await _store_memory_with_timeout()
@@ -141,7 +141,7 @@ class MemoryMcpServer:
                             metadata=metadata or {},
                             context=context or {}
                         ),
-                        timeout=5.0  # Allow up to 5s for memory storage (increased from 3s)
+                        timeout=15.0  # Allow up to 15s for memory storage (includes embedding model loading)
                     )
                 except asyncio.TimeoutError:
                     logger.warning("Memory storage operation timed out")
