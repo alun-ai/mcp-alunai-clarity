@@ -13,6 +13,7 @@ import os
 import sys
 import uuid
 import time
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -122,6 +123,9 @@ class QdrantPersistenceDomain:
         self._unified_config = None
         self._connection_healthy = False
         self._last_health_check = 0
+        self._health_monitor_task = None
+        self._health_monitor_enabled = config.get("health_monitoring", {}).get("enabled", True)
+        self._health_check_interval = config.get("health_monitoring", {}).get("interval", 60.0)  # 1 minute default
         
         # Initialize caches
         self.embedding_cache = get_cache(
@@ -176,6 +180,12 @@ class QdrantPersistenceDomain:
             self.embedding_model = None
             logger.debug(f"Embedding model {self.embedding_model_name} will be loaded lazily")
             
+            # Start health monitoring background task if enabled
+            if self._health_monitor_enabled:
+                import asyncio
+                self._health_monitor_task = asyncio.create_task(self._health_monitor_loop())
+                logger.info(f"Health monitoring task started (interval: {self._health_check_interval}s)")
+            
             logger.info("Qdrant persistence domain initialized successfully (connection deferred)")
             
         except (QdrantConnectionError, ImportError, OSError, RuntimeError, ValueError) as e:
@@ -213,6 +223,104 @@ class QdrantPersistenceDomain:
                 else:
                     logger.error(f"Failed to recover connection after {max_retries} attempts: {e}")
                     raise
+
+    async def _health_monitor_loop(self) -> None:
+        """Background task to monitor connection health and perform proactive recovery."""
+        import asyncio
+        
+        while True:
+            try:
+                await asyncio.sleep(self._health_check_interval)
+                
+                # Only check health if client is initialized
+                if self.client is not None and self._client_initialized:
+                    health_ok = await self._perform_health_check()
+                    if not health_ok:
+                        logger.warning("Health check failed - attempting proactive connection recovery")
+                        try:
+                            await self._recover_connection()
+                            logger.info("Proactive connection recovery completed successfully")
+                        except Exception as recovery_e:
+                            logger.error(f"Proactive connection recovery failed: {recovery_e}")
+                            self._connection_healthy = False
+                    else:
+                        self._connection_healthy = True
+                        self._last_health_check = time.time()
+                else:
+                    logger.debug("Health check skipped - client not yet initialized")
+                
+            except asyncio.CancelledError:
+                logger.info("Health monitoring task cancelled")
+                break
+            except Exception as e:
+                logger.warning(f"Error in health monitoring loop: {e}")
+                # Continue monitoring despite errors
+    
+    async def _perform_health_check(self) -> bool:
+        """Perform a quick health check on the current connection."""
+        try:
+            if not self.client:
+                return False
+            
+            # Check if the client is closed (for local instances)
+            if hasattr(self.client, '_client') and hasattr(self.client._client, 'is_closed'):
+                if self.client._client.is_closed():
+                    logger.warning("Health check failed: QdrantLocal instance is closed")
+                    return False
+            
+            # Try a simple operation with timeout
+            import asyncio
+            await asyncio.wait_for(
+                asyncio.to_thread(self.client.get_collections),
+                timeout=5.0
+            )
+            
+            return True
+            
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "instance is closed" in error_msg:
+                logger.warning("Health check failed: Qdrant instance is closed")
+            else:
+                logger.warning(f"Health check failed: {e}")
+            return False
+    
+    def get_connection_status(self) -> Dict[str, Any]:
+        """Get current connection status and health information."""
+        return {
+            "healthy": self._connection_healthy,
+            "client_initialized": self._client_initialized,
+            "last_health_check": self._last_health_check,
+            "health_monitoring_enabled": self._health_monitor_enabled,
+            "health_check_interval": self._health_check_interval,
+            "has_client": self.client is not None,
+            "connection_pool_stats": self.connection_pool.get_stats() if self.connection_pool else None
+        }
+    
+    async def close(self) -> None:
+        """Clean up resources including health monitoring task."""
+        # Cancel health monitoring task
+        if self._health_monitor_task:
+            self._health_monitor_task.cancel()
+            try:
+                await self._health_monitor_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("Health monitoring task stopped")
+        
+        # Close connection pool
+        if self.connection_pool:
+            await self.connection_pool.close()
+        
+        # Close client
+        if self.client:
+            try:
+                if hasattr(self.client, 'close'):
+                    self.client.close()
+            except Exception as e:
+                logger.warning(f"Error closing client: {e}")
+        
+        logger.info("Persistence domain closed")
 
     async def _ensure_client_initialized(self) -> None:
         """Ensure Qdrant client is initialized on first vector operation (thread-safe)."""

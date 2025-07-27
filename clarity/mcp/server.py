@@ -90,14 +90,14 @@ class MemoryMcpServer:
                 async def _store_memory_with_timeout():
                     return await asyncio.wait_for(
                         _store_memory_impl(memory_type, content, importance, metadata, context),
-                        timeout=29.0  # 29s total timeout to fit within 30s hook timeout (account for connection recovery)
+                        timeout=25.0  # 25s total timeout to fit within 30s hook timeout with safety margin
                     )
                 
                 return await _store_memory_with_timeout()
                 
             except asyncio.TimeoutError:
                 logger.warning(f"store_memory overall timeout exceeded")
-                return MCPResponseBuilder.error("Memory storage timed out - please try again")
+                return MCPResponseBuilder.error("Memory storage timed out after 25 seconds. This may indicate database connection issues or the embedding model is loading for the first time. Please try again - subsequent attempts should be faster.")
             except Exception as e:
                 logger.error(f"Error in store_memory: {str(e)}")
                 return MCPResponseBuilder.error(str(e))
@@ -122,16 +122,52 @@ class MemoryMcpServer:
                 try:
                     await asyncio.wait_for(
                         self._lazy_initialize_domains(),
-                        timeout=10.0  # Allow up to 10s for domain initialization (reduced from 20s)
+                        timeout=12.0  # Allow up to 12s for domain initialization (includes embedding model loading)
                     )
                     logger.info(f"🔍 DEBUG: _lazy_initialize_domains() completed")
                 except asyncio.TimeoutError:
                     logger.warning("Domain initialization timed out")
-                    return MCPResponseBuilder.error("Memory system initialization timed out - please try again")
+                    return MCPResponseBuilder.error("Memory system initialization timed out after 12 seconds. This typically happens during first startup when downloading embedding models. Please try again - subsequent startups should be much faster.")
                 
                 logger.info(f"🔍 DEBUG: About to call domain_manager.store_memory()")
                 
-                # Memory storage with timeout protection and connection recovery handling
+                # Fast connection health check before attempting storage
+                try:
+                    logger.info("🔍 DEBUG: Performing quick connection health check...")
+                    connection_ok = await asyncio.wait_for(
+                        self._quick_connection_check(),
+                        timeout=2.0  # Quick check should be very fast
+                    )
+                    if not connection_ok:
+                        logger.warning("Quick connection check failed - Qdrant connection is down")
+                        # Get detailed status for better error message
+                        try:
+                            if hasattr(self.domain_manager, 'persistence_domain') and hasattr(self.domain_manager.persistence_domain, 'get_connection_status'):
+                                status = self.domain_manager.persistence_domain.get_connection_status()
+                                if not status.get('client_initialized', False):
+                                    return MCPResponseBuilder.error("Memory storage unavailable - database not yet initialized. Please try again in a moment.")
+                                elif status.get('health_monitoring_enabled', False) and not status.get('healthy', False):
+                                    return MCPResponseBuilder.error("Memory storage temporarily unavailable - database connection was lost and is being recovered. Please try again in 10-30 seconds.")
+                                else:
+                                    return MCPResponseBuilder.error("Memory storage unavailable - database connection health check failed. Please try again.")
+                            else:
+                                return MCPResponseBuilder.error("Memory storage unavailable - database connection is down. Please try again in a moment while the connection recovers.")
+                        except Exception:
+                            return MCPResponseBuilder.error("Memory storage unavailable - database connection is down. Please try again in a moment while the connection recovers.")
+                except asyncio.TimeoutError:
+                    logger.warning("Quick connection check timed out")
+                    return MCPResponseBuilder.error("Memory storage unavailable - database health check timed out (2s). This usually indicates database startup in progress. Please try again in 5-10 seconds.")
+                except Exception as e:
+                    logger.warning(f"Quick connection check failed: {e}")
+                    error_msg = str(e).lower()
+                    if "connection refused" in error_msg:
+                        return MCPResponseBuilder.error("Memory storage unavailable - database connection refused. Database may be starting up. Please try again in 10-20 seconds.")
+                    elif "instance is closed" in error_msg:
+                        return MCPResponseBuilder.error("Memory storage unavailable - database instance was closed. Connection recovery in progress. Please try again in 10-30 seconds.")
+                    else:
+                        return MCPResponseBuilder.error(f"Memory storage unavailable - database connection check failed: {str(e)}. Please try again.")
+                
+                # Memory storage with reasonable timeout (connection is healthy)
                 try:
                     memory_id = await asyncio.wait_for(
                         self.domain_manager.store_memory(
@@ -141,27 +177,22 @@ class MemoryMcpServer:
                             metadata=metadata or {},
                             context=context or {}
                         ),
-                        timeout=20.0  # Allow up to 20s for memory storage (includes embedding model + connection recovery)
+                        timeout=15.0  # Generous timeout for healthy connections (first-time embedding model loading)
                     )
                 except asyncio.TimeoutError:
-                    logger.warning("Memory storage operation timed out (likely due to connection recovery)")
-                    # Try one more time with a quick timeout for already recovered connections
-                    try:
-                        logger.info("Attempting quick retry after timeout...")
-                        memory_id = await asyncio.wait_for(
-                            self.domain_manager.store_memory(
-                                memory_type=memory_type,
-                                content=content,
-                                importance=importance,
-                                metadata=metadata or {},
-                                context=context or {}
-                            ),
-                            timeout=5.0  # Quick retry timeout
-                        )
-                        logger.info("Quick retry succeeded after connection recovery")
-                    except (asyncio.TimeoutError, Exception) as e:
-                        logger.warning(f"Memory storage failed after retry: {e}")
-                        return MCPResponseBuilder.error("Memory storage timed out - Qdrant connection recovery in progress. Please try again in a moment.")
+                    logger.warning("Memory storage operation timed out despite healthy connection")
+                    return MCPResponseBuilder.error("Memory storage timed out after 15 seconds despite healthy database connection. This typically happens during first-time embedding model loading. Please try again - subsequent operations should be much faster.")
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "instance is closed" in error_msg:
+                        logger.error(f"Memory storage failed due to closed instance: {e}")
+                        return MCPResponseBuilder.error("Memory storage failed - database connection was lost during operation. Connection recovery in progress. Please try again in 10-30 seconds.")
+                    elif "connection" in error_msg and ("refused" in error_msg or "reset" in error_msg or "timeout" in error_msg):
+                        logger.error(f"Memory storage failed due to connection issue: {e}")
+                        return MCPResponseBuilder.error("Memory storage failed due to database connection issue. Please try again in a few seconds.")
+                    else:
+                        logger.error(f"Memory storage failed: {e}")
+                        return MCPResponseBuilder.error(f"Memory storage failed: {str(e)}")
                 
                 # Hook triggering with timeout protection (optional, can fail gracefully)
                 execution_time = time.time() - start_time
@@ -2377,6 +2408,87 @@ Stages Completed:
             logger.warning(f"Failed to setup Claude Code hooks immediately: {e}")
             logger.info("Hooks will be configured during lazy initialization instead")
     
+    async def _quick_connection_check(self) -> bool:
+        """Perform a fast connection health check to detect closed Qdrant instances."""
+        try:
+            # Check if domain manager and persistence domain exist
+            if not hasattr(self, 'domain_manager') or not self.domain_manager:
+                logger.warning("Domain manager not available for connection check")
+                return False
+            
+            if not hasattr(self.domain_manager, 'persistence_domain') or not self.domain_manager.persistence_domain:
+                logger.warning("Persistence domain not available for connection check")
+                return False
+                
+            persistence_domain = self.domain_manager.persistence_domain
+            
+            # Use the new built-in health monitoring if available
+            if hasattr(persistence_domain, 'get_connection_status'):
+                status = persistence_domain.get_connection_status()
+                logger.info(f"🔍 DEBUG: Connection status: {status}")
+                
+                # Check if health monitoring indicates healthy connection
+                if status.get('healthy', False) and status.get('client_initialized', False):
+                    logger.info("🔍 DEBUG: Quick connection check passed - health monitoring indicates healthy connection")
+                    return True
+                
+                # If health monitoring indicates unhealthy, double-check with direct test
+                if not status.get('healthy', True):  # Default to True if no health info
+                    logger.warning("Health monitoring indicates unhealthy connection")
+                    return False
+            
+            # Fallback to direct health check if available
+            if hasattr(persistence_domain, '_perform_health_check'):
+                try:
+                    health_ok = await asyncio.wait_for(
+                        persistence_domain._perform_health_check(),
+                        timeout=2.0
+                    )
+                    if health_ok:
+                        logger.info("🔍 DEBUG: Quick connection check passed - direct health check successful")
+                        return True
+                    else:
+                        logger.warning("Direct health check failed")
+                        return False
+                except asyncio.TimeoutError:
+                    logger.warning("Direct health check timed out")
+                    return False
+            
+            # Legacy fallback: Check connection pool if other methods not available
+            if hasattr(persistence_domain, 'connection_pool') and persistence_domain.connection_pool:
+                stats = persistence_domain.connection_pool.get_stats()
+                logger.info(f"🔍 DEBUG: Connection pool stats: {stats}")
+                
+                # Check if we have any connections available
+                if stats.get('total_connections', 0) == 0:
+                    logger.warning("No connections available in pool")
+                    return False
+                
+                # Try a quick connection acquisition test
+                try:
+                    async with asyncio.wait_for(persistence_domain.connection_pool.acquire(), timeout=2.0) as client:
+                        logger.info("🔍 DEBUG: Quick connection check passed - legacy pool test successful")
+                        return True
+                except asyncio.TimeoutError:
+                    logger.warning("Legacy connection pool test timed out")
+                    return False
+                except Exception as e:
+                    error_msg = str(e).lower()
+                    if "instance is closed" in error_msg or "connection closed" in error_msg:
+                        logger.warning(f"Legacy connection check failed - Qdrant instance appears to be closed: {e}")
+                        return False
+                    else:
+                        logger.warning(f"Legacy connection check failed: {e}")
+                        return False
+            
+            # If no connection infrastructure is available
+            logger.warning("No connection infrastructure available for health check")
+            return False
+            
+        except Exception as e:
+            logger.warning(f"Quick connection check failed: {e}")
+            return False
+
     async def _lazy_initialize_domains(self) -> None:
         """Initialize domains lazily when first memory operation is called."""
         logger.info(f"🔍 DEBUG: _lazy_initialize_domains called, _domains_initialized={self._domains_initialized}")
