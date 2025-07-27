@@ -89,7 +89,7 @@ class MemoryMcpServer:
                 # Overall timeout to prevent hook cancellation
                 async def _store_memory_with_timeout():
                     return await asyncio.wait_for(
-                        self._store_memory_impl(memory_type, content, importance, metadata, context),
+                        _store_memory_impl(memory_type, content, importance, metadata, context),
                         timeout=25.0  # 25s total timeout to fit within 30s hook timeout
                     )
                 
@@ -103,7 +103,6 @@ class MemoryMcpServer:
                 return MCPResponseBuilder.error(str(e))
         
         async def _store_memory_impl(
-            self,
             memory_type: str,
             content: str,
             importance: float = 0.5,
