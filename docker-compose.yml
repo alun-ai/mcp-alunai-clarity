@@ -1,15 +1,15 @@
 version: '3.8'
 
 services:
-  mcp-alunai-clarity-alpha:
+  mcp-alunai-clarity:
     build:
       context: .
-      dockerfile: Dockerfile.alpha
-    container_name: mcp-alunai-clarity-alpha
+      dockerfile: Dockerfile
+    container_name: mcp-alunai-clarity
     ports:
       - "8000:8000"
     environment:
-      - MEMORY_CONFIG_PATH=/app/data/alpha_config.json
+      - MEMORY_CONFIG_PATH=/app/data/config.json
       - SQLITE_DATA_PATH=/app/data/sqlite
       - PYTHONPATH=/app
     volumes:
@@ -23,6 +23,6 @@ services:
       retries: 3
       start_period: 40s
     labels:
-      - "com.alunai.clarity.version=alpha"
+      - "com.alunai.clarity.version=2.0.0"
       - "com.alunai.clarity.implementation=sqlite"
-      - "com.alunai.clarity.description=Alpha SQLite-based MCP server for local testing"
+      - "com.alunai.clarity.description=SQLite-based MCP server for memory persistence"

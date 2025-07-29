@@ -27,7 +27,7 @@ Alunai Clarity provides the following core capabilities:
 ## Architecture
 
 ### Memory System
-- **Vector Database**: Qdrant for semantic similarity search and scalable storage
+- **Vector Database**: SQLite with sqlite-vec extension for high-performance vector search
 - **Embedding Models**: Configurable sentence transformers with intelligent fallbacks
 - **Connection Pooling**: Shared client management with automatic recovery mechanisms
 - **Memory Types**: 12 specialized types including structured thinking and project patterns
@@ -48,7 +48,19 @@ Alunai Clarity provides the following core capabilities:
 
 ## Quick Start
 
-### Docker Setup (Recommended)
+### Docker Compose Deployment (Recommended)
+
+```bash
+# Clone and start
+git clone https://github.com/alun-ai/mcp-alunai-clarity.git
+cd mcp-alunai-clarity
+docker-compose up -d
+
+# Test connection
+curl http://localhost:8000/health
+```
+
+### MCP Client Configuration
 
 Add to:
 - Claude Desktop `claude_desktop_config.json`:

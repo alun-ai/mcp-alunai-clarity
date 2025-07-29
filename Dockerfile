@@ -5,51 +5,58 @@ COPY requirements.txt pyproject.toml ./
 RUN apt-get update && apt-get install -y \
     build-essential \
     g++ \
+    git \
+    curl \
+    gettext-base \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install sqlite-vec extension
+RUN git clone https://github.com/asg017/sqlite-vec.git /tmp/sqlite-vec \
+    && cd /tmp/sqlite-vec \
+    && make loadable \
+    && mkdir -p /usr/local/lib \
+    && cp dist/vec0.so /usr/local/lib/ \
+    && rm -rf /tmp/sqlite-vec
+
 RUN pip install --user --no-warn-script-location -r requirements.txt
 
 FROM python:3.11-slim
 
 WORKDIR /app
 COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/vec0.so /usr/local/lib/
 COPY . .
 
 ENV PATH=/root/.local/bin:$PATH
 ENV PYTHONPATH=/app
 
-# Qdrant data directory
-ENV QDRANT_DATA_PATH=/app/data/qdrant
+# SQLite data directory
+ENV SQLITE_DATA_PATH=/app/data/sqlite
 ENV MEMORY_CONFIG_PATH=/app/data/config.json
 
 # Create data directories
-RUN mkdir -p /app/data/qdrant /app/data/backups
+RUN mkdir -p /app/data/sqlite /app/data/backups /app/data/cache
 
-# Create default configuration with optimizations and error handling
+# Create production configuration optimized for SQLite
 RUN echo '{\
   "server": {\
     "host": "127.0.0.1",\
     "port": 8000,\
     "debug": false\
   },\
-  "qdrant": {\
-    "path": "/app/data/qdrant",\
-    "host": "localhost",\
-    "port": 6333,\
-    "prefer_grpc": false,\
+  "sqlite": {\
+    "path": "/app/data/sqlite/memory.db",\
+    "wal_mode": true,\
     "timeout": 30.0,\
     "max_retries": 3,\
     "retry_backoff": 1.0,\
-    "index_params": {\
-      "m": 16,\
-      "ef_construct": 200,\
-      "full_scan_threshold": 10000\
-    },\
-    "optimization": {\
-      "deleted_threshold": 0.2,\
-      "vacuum_min_vector_number": 1000,\
-      "default_segment_number": 0,\
-      "indexing_threshold": 20000,\
-      "payload_indexing_threshold": 10000\
+    "pragma_settings": {\
+      "journal_mode": "WAL",\
+      "synchronous": "NORMAL",\
+      "cache_size": 10000,\
+      "temp_store": "MEMORY",\
+      "mmap_size": 268435456\
     }\
   },\
   "embedding": {\
@@ -138,7 +145,7 @@ RUN echo '{\
     "log_sql_operations": false,\
     "log_embedding_operations": false\
   }\
-}' > /app/data/default_config.json
+}' > /app/data/config.json
 
 # Set permissions
 RUN chmod +x setup.sh 2>/dev/null || true
@@ -146,8 +153,9 @@ RUN chmod +x setup.sh 2>/dev/null || true
 # Volume for persistent data
 VOLUME ["/app/data"]
 
-# Create entrypoint script to handle permissions
+# Create entrypoint script
 RUN echo '#!/bin/bash\n\
+# SQLite-based MCP server entrypoint\n\
 # Fix permissions for mounted volume\n\
 if [ -d "/app/data" ]; then\n\
     # Get the host user ID from volume ownership\n\
