@@ -1,14 +1,5 @@
 # Infrastructure utilities for Clarity
 
-# Unified Qdrant connection management
-from .unified_qdrant import (
-    get_qdrant_connection,
-    UnifiedConnectionConfig,
-    ConnectionStrategy,
-    get_unified_stats,
-    close_unified_qdrant_manager
-)
-
 from .cache import (
     InMemoryCache,
     CacheManager,
@@ -22,13 +13,6 @@ from .cache import (
 )
 
 __all__ = [
-    # Unified Qdrant connection management
-    'get_qdrant_connection',
-    'UnifiedConnectionConfig',
-    'ConnectionStrategy', 
-    'get_unified_stats',
-    'close_unified_qdrant_manager',
-    
     # Cache
     'InMemoryCache',
     'CacheManager',

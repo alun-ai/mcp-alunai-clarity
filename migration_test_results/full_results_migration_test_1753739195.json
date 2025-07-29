@@ -1,0 +1,9 @@
+{
+  "test_session_id": "migration_test_1753739195",
+  "started_at": "2025-07-28T21:46:35.262476",
+  "mode": "quick",
+  "test_size": 50,
+  "components": {},
+  "error": "object NoneType can't be used in 'await' expression",
+  "status": "failed"
+}

@@ -1,11 +1,19 @@
 {
-  "qdrant": {
-    "path": "/Users/chadupton/Documents/Github/alun-ai/mcp-alunai-clarity/.claude/alunai-clarity/qdrant",
-    "index_params": {
-      "m": 16,
-      "ef_construct": 200,
-      "full_scan_threshold": 1
-    }
+  "persistence": {
+    "backend": "sqlite",
+    "use_sqlite": true
+  },
+  "sqlite": {
+    "path": "./.claude/alunai-clarity/memories.db",
+    "wal_mode": true,
+    "sync_mode": "NORMAL",
+    "cache_size": 10000,
+    "enable_fts": true
+  },
+  "migration": {
+    "backup_qdrant": true,
+    "validate_migration": true,
+    "fallback_on_error": true
   },
   "embedding": {
     "default_model": "sentence-transformers/all-MiniLM-L6-v2",

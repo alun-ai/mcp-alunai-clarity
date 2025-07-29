@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  mcp-alunai-clarity-alpha:
+    build:
+      context: .
+      dockerfile: Dockerfile.alpha
+    container_name: mcp-alunai-clarity-alpha
+    ports:
+      - "8000:8000"
+    environment:
+      - MEMORY_CONFIG_PATH=/app/data/alpha_config.json
+      - SQLITE_DATA_PATH=/app/data/sqlite
+      - PYTHONPATH=/app
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.alunai.clarity.version=alpha"
+      - "com.alunai.clarity.implementation=sqlite"
+      - "com.alunai.clarity.description=Alpha SQLite-based MCP server for local testing"

@@ -104,7 +104,9 @@
       "mcp__alunai-clarity-dev__check_relevant_memories",
       "mcp__alunai-clarity-dev__retrieve_memory",
       "mcp__alunai-clarity-dev__sequential_thinking",
-      "Bash(PYTHONPATH=. python -c \"\ntry:\n    from clarity.mcp.server import create_server\n    print(''✓ Server import successful'')\n    print(''✓ create_server function available'')\nexcept Exception as e:\n    print(f''✗ Import error: {e}'')\n\")"
+      "Bash(PYTHONPATH=. python -c \"\ntry:\n    from clarity.mcp.server import create_server\n    print(''✓ Server import successful'')\n    print(''✓ create_server function available'')\nexcept Exception as e:\n    print(f''✗ Import error: {e}'')\n\")",
+      "WebFetch(domain:alexgarcia.xyz)",
+      "Bash(echo)"
     ],
     "deny": []
   },

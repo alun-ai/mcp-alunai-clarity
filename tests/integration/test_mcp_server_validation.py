@@ -8,7 +8,7 @@ These tests validate the complete MCP server functionality including:
 4. Concurrent operations and thread safety
 5. Performance characteristics
 6. Hook system integration
-7. Data consistency between MCP layer and Qdrant
+7. Data consistency between MCP layer and SQLite persistence
 
 Each test validates both MCP protocol behavior AND underlying data integrity.
 """

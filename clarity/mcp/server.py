@@ -602,89 +602,79 @@ class MemoryMcpServer:
             include_relationships: bool = True,
             include_stage_summaries: bool = True
         ) -> str:
-            """Generate comprehensive thinking process summary."""
+            """Generate comprehensive thinking process summary (SQLite implementation)."""
             try:
                 import json
                 import time
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
                 
                 start_time = time.time()
+                logger.info(f"Generating thinking summary for session: {session_id}")
                 
-                # Query memories directly to get thinking session data
-                # Try both field names for backwards compatibility
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
+                # SQLite-based implementation: Search for thinking session memories
+                # Use the new SQLite search capabilities instead of Qdrant client.scroll
                 
-                session_filter = Filter(
-                    should=[
-                        FieldCondition(
-                            key="metadata.thinking_session_id",
-                            match=MatchValue(value=session_id)
-                        ),
-                        FieldCondition(
-                            key="metadata.session_id",
-                            match=MatchValue(value=session_id)
-                        )
-                    ]
-                )
-                
-                results = self.domain_manager.persistence_domain.client.scroll(
-                    collection_name=self.domain_manager.persistence_domain.COLLECTION_NAME,
-                    scroll_filter=session_filter,
-                    limit=1000,
-                    with_payload=True,
-                    with_vectors=False
-                )
-                
-                if not results[0]:
-                    return json.dumps({"success": False, "error": f"No thinking session found with id: {session_id}"})
-                
-                # Process memories to extract session information
+                session_memories = []
                 thoughts_data = []
                 stages_set = set()
                 session_info = {}
-                session_memories = []
                 
-                for point in results[0]:
-                    payload = point.payload
-                    metadata = payload.get("metadata", {})
-                    memory_type = payload.get("memory_type", "")
+                # Search for thinking session related memories
+                try:
+                    # Search for session memories with thinking session metadata
+                    session_results = await self.domain_manager.persistence_domain.search_memories(
+                        limit=1000,
+                        types=["sequential_thinking_session", "structured_thinking_session", 
+                               "sequential_thinking_stage", "structured_thinking"],
+                        filters={}
+                    )
                     
-                    # Skip relationship memories
-                    if memory_type == "thinking_relationship":
-                        continue
-                    
-                    # Collect session summary info
-                    if memory_type in ["sequential_thinking_session", "structured_thinking_session"]:
-                        session_info = {
-                            "task": str(metadata.get("task", "Unknown task")),
-                            "thinking_style": str(metadata.get("thinking_style", "systematic")),
-                            "stages_count": int(metadata.get("stages_count", 0)),
-                            "execution_time": float(metadata.get("execution_time", 0))
-                        }
-                        session_memories.append({
-                            "memory_type": memory_type,
-                            "content": str(payload.get("content", "")),
-                            "metadata": metadata
-                        })
-                        continue
-                    
-                    # Process thinking stage memories
-                    if memory_type in ["sequential_thinking_stage", "structured_thinking"]:
-                        stage_name = str(metadata.get("stage", metadata.get("thinking_stage", "unknown")))
-                        thought_data = {
-                            "memory_type": memory_type,
-                            "thought_number": int(metadata.get("thought_number", metadata.get("stage_number", 0))),
-                            "stage": stage_name,
-                            "content": str(payload.get("content", "")),
-                            "content_preview": str(payload.get("content", ""))[:200] + ("..." if len(str(payload.get("content", ""))) > 200 else ""),
-                            "focus": str(metadata.get("focus", "")),
-                            "tags": [str(tag) for tag in metadata.get("tags", [])],
-                            "axioms": [str(axiom) for axiom in metadata.get("axioms", [])],
-                            "assumptions_challenged": [str(assumption) for assumption in metadata.get("assumptions_challenged", [])]
-                        }
-                        
-                        thoughts_data.append(thought_data)
-                        stages_set.add(stage_name)
+                    # Filter results by session_id in metadata
+                    for memory in session_results:
+                        metadata = memory.get("metadata", {})
+                        if (metadata.get("thinking_session_id") == session_id or 
+                            metadata.get("session_id") == session_id):
+                            
+                            memory_type = memory.get("type", "")
+                            
+                            # Skip relationship memories
+                            if memory_type == "thinking_relationship":
+                                continue
+                            
+                            # Collect session summary info
+                            if memory_type in ["sequential_thinking_session", "structured_thinking_session"]:
+                                session_info = {
+                                    "task": str(metadata.get("task", "Unknown task")),
+                                    "thinking_style": str(metadata.get("thinking_style", "systematic")),
+                                    "stages_count": int(metadata.get("stages_count", 0)),
+                                    "execution_time": float(metadata.get("execution_time", 0))
+                                }
+                                session_memories.append({
+                                    "memory_type": memory_type,
+                                    "content": str(memory.get("content", "")),
+                                    "metadata": metadata
+                                })
+                                continue
+                            
+                            # Process thinking stage memories
+                            if memory_type in ["sequential_thinking_stage", "structured_thinking"]:
+                                stage_name = str(metadata.get("stage", metadata.get("thinking_stage", "unknown")))
+                                thought_data = {
+                                    "memory_type": memory_type,
+                                    "thought_number": int(metadata.get("thought_number", metadata.get("stage_number", 0))),
+                                    "stage": stage_name,
+                                    "content": str(memory.get("content", "")),
+                                    "content_preview": str(memory.get("content", ""))[:200] + ("..." if len(str(memory.get("content", ""))) > 200 else ""),
+                                    "focus": str(metadata.get("focus", "")),
+                                    "tags": [str(tag) for tag in metadata.get("tags", [])],
+                                    "axioms": [str(axiom) for axiom in metadata.get("axioms", [])],
+                                    "assumptions_challenged": [str(assumption) for assumption in metadata.get("assumptions_challenged", [])]
+                                }
+                                
+                                thoughts_data.append(thought_data)
+                                stages_set.add(stage_name)
+                
+                except Exception as e:
+                    logger.warning(f"Failed to search memories for thinking session: {e}")
                 
                 # Sort by thought number
                 thoughts_data.sort(key=lambda x: x.get("thought_number", 0))
@@ -693,7 +683,7 @@ class MemoryMcpServer:
                 summary_data = {
                     "success": True,
                     "session_id": str(session_id),
-                    "title": f"Thinking Session {session_id[-8:]}",
+                    "title": f"Thinking Session {session_id[-8:]}" if len(session_id) >= 8 else f"Thinking Session {session_id}",
                     "session_info": session_info,
                     "total_thoughts": len(thoughts_data),
                     "stages_completed": sorted(list(stages_set)),
@@ -705,16 +695,18 @@ class MemoryMcpServer:
                     "relationship_analysis": {
                         "total_relationships": 0,  
                         "thoughts_with_relationships": 0,
-                        "enabled": include_relationships
+                        "enabled": include_relationships,
+                        "note": "Relationship analysis temporarily disabled in SQLite backend"
                     },
-                    "confidence_score": 0.8 + (len(stages_set) * 0.05),
+                    "confidence_score": 0.8 + (len(stages_set) * 0.05) if stages_set else 0.5,
                     "metadata": {
                         "generation_time": time.time() - start_time,
-                        "memories_found": len(results[0]),
+                        "memories_found": len(session_memories) + len(thoughts_data),
                         "include_relationships": include_relationships,
-                        "include_stage_summaries": include_stage_summaries
+                        "include_stage_summaries": include_stage_summaries,
+                        "backend": "SQLite"
                     },
-                    "status": "Session summary generated successfully"
+                    "status": "Session summary generated successfully (SQLite backend)" if thoughts_data or session_memories else "No thinking session found with this ID"
                 }
                 
                 # Trigger hooks with JSON-safe data
@@ -739,7 +731,8 @@ class MemoryMcpServer:
                 return json.dumps({
                     "success": False,
                     "error": f"Error: {str(e)}",
-                    "error_type": type(e).__name__
+                    "error_type": type(e).__name__,
+                    "backend": "SQLite"
                 })
 
         @self.app.tool()

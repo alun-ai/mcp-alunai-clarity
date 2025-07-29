@@ -15,8 +15,8 @@ tests/
 │   └── test_config.py             # Configuration and schema validation
 ├── integration/                   # Integration tests (end-to-end)
 │   └── test_end_to_end.py         # Complete workflow testing
-├── performance/                   # Performance and scalability tests
-│   └── test_qdrant_performance.py # Database performance testing
+├── migration/                     # SQLite persistence validation
+│   └── sqlite_persistence_test.py # SQLite memory operations testing
 ├── deployment/                    # Deployment and infrastructure tests
 │   └── test_docker.py             # Docker containerization testing
 └── README.md                      # This file

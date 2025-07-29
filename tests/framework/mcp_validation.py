@@ -36,7 +36,7 @@ import pytest
 from mcp.server.fastmcp import FastMCP
 from clarity.mcp.server import MemoryMcpServer
 from clarity.shared.utils import MCPResponseBuilder, SafeJSONHandler
-from tests.framework.data_validation import DataValidationTestSuite, QdrantInspector, ValidationResult
+# Note: DataValidationTestSuite removed as part of SQLite migration
 
 
 @dataclass
