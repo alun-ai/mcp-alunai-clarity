@@ -5,13 +5,27 @@ COPY requirements.txt pyproject.toml ./
 RUN apt-get update && apt-get install -y \
     build-essential \
     g++ \
+    git \
+    curl \
+    gettext-base \
+    libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install sqlite-vec extension
+RUN git clone https://github.com/asg017/sqlite-vec.git /tmp/sqlite-vec \
+    && cd /tmp/sqlite-vec \
+    && make loadable \
+    && mkdir -p /usr/local/lib \
+    && cp dist/vec0.so /usr/local/lib/ \
+    && rm -rf /tmp/sqlite-vec
+
 RUN pip install --user --no-warn-script-location -r requirements.txt
 
 FROM python:3.11-slim
 
 WORKDIR /app
 COPY --from=builder /root/.local /root/.local
+COPY --from=builder /usr/local/lib/vec0.so /usr/local/lib/
 COPY . .
 
 ENV PATH=/root/.local/bin:$PATH
@@ -19,7 +33,7 @@ ENV PYTHONPATH=/app
 
 # SQLite data directory (replaced Qdrant)
 ENV SQLITE_DATA_PATH=/app/data/sqlite
-ENV MEMORY_CONFIG_PATH=/app/data/config.json
+ENV MEMORY_CONFIG_PATH=/app/data/alpha_config.json
 
 # Create data directories (removed qdrant directory)
 RUN mkdir -p /app/data/sqlite /app/data/backups /app/data/cache
