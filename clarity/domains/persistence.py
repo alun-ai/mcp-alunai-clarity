@@ -423,6 +423,10 @@ class PersistenceDomain:
             return []
     
     # Performance and monitoring methods
+    def get_connection_status(self) -> Dict[str, Any]:
+        """Get connection status for health monitoring compatibility."""
+        return self.backend.get_connection_status()
+    
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get cache performance statistics."""
         return {

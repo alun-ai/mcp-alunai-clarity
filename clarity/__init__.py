@@ -6,4 +6,4 @@ code project assistance for Large Language Models, specifically designed to work
 desktop application.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.2.2"

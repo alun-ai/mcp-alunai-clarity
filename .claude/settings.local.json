@@ -107,7 +107,8 @@
       "Bash(PYTHONPATH=. python -c \"\ntry:\n    from clarity.mcp.server import create_server\n    print(''✓ Server import successful'')\n    print(''✓ create_server function available'')\nexcept Exception as e:\n    print(f''✗ Import error: {e}'')\n\")",
       "WebFetch(domain:alexgarcia.xyz)",
       "Bash(echo)",
-      "Bash(diff:*)"
+      "Bash(diff:*)",
+      "Bash(connection is down\" errors when memory storage was actually working fine.\n\nChanges:\n- Add get_connection_status method to PersistenceDomain class\n- Method delegates to self.backend.get_connection_status()\n- Bump versions to 0.2.2/1.17.5\n\n🔧 Generated with [Claude Code](https://claude.ai/code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": []
   },
