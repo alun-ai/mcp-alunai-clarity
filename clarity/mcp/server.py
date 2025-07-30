@@ -46,7 +46,10 @@ class MemoryMcpServer:
         
         # Import version from clarity package
         from clarity import __version__
-        self.app = FastMCP("mcp-alunai-clarity-server", version=__version__)
+        self.app = FastMCP("mcp-alunai-clarity-server")
+        # Set version on the underlying MCP server
+        self.app._mcp_server.name = "mcp-alunai-clarity-server" 
+        self.app._mcp_server.version = __version__
         self.tool_definitions = MemoryToolDefinitions(self.domain_manager)
         
         # Recursion guard for retrieve_memory calls

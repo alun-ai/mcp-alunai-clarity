@@ -125,8 +125,20 @@ class SQLiteMemoryPersistence:
             
             # Try to load sqlite-vec extension if available
             try:
-                conn.load_extension('vec0')
-                logger.info("sqlite-vec extension loaded successfully")
+                # Try full path first, fallback to library name
+                import os
+                vec_paths = ['/usr/local/lib/vec0.so', 'vec0']
+                for vec_path in vec_paths:
+                    if vec_path.endswith('.so') and not os.path.exists(vec_path):
+                        continue
+                    try:
+                        conn.load_extension(vec_path)
+                        logger.info(f"sqlite-vec extension loaded successfully from {vec_path}")
+                        break
+                    except sqlite3.Error:
+                        continue
+                else:
+                    raise sqlite3.Error("sqlite-vec extension not found in any location")
             except sqlite3.Error as e:
                 logger.warning(f"sqlite-vec extension not available: {e}")
                 logger.info("Vector similarity will use fallback calculation")
