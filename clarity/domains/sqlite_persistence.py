@@ -719,6 +719,32 @@ class SQLiteMemoryPersistence:
             logger.error(f"Failed to get memory stats: {e}")
             return {"error": str(e)}
     
+    def get_connection_status(self) -> Dict[str, Any]:
+        """Get connection status for health monitoring compatibility."""
+        try:
+            # Test database connection with a simple query
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("SELECT 1")
+                cursor.fetchone()
+                
+            return {
+                "healthy": True,
+                "client_initialized": True,
+                "health_monitoring_enabled": True,
+                "database_path": self.db_path,
+                "database_type": "sqlite"
+            }
+        except Exception as e:
+            logger.warning(f"SQLite connection health check failed: {e}")
+            return {
+                "healthy": False,
+                "client_initialized": False,
+                "health_monitoring_enabled": True,
+                "error": str(e),
+                "database_path": self.db_path,
+                "database_type": "sqlite"
+            }
+    
     @cached(cache_name="memories", key_func=lambda self, memory_id: f"mem_{memory_id}")
     async def get_memory(self, memory_id: str) -> Optional[Dict[str, Any]]:
         """Get memory by ID with caching."""

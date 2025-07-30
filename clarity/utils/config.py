@@ -92,47 +92,47 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
     
     # Use shared storage by default for all Claude instances in same project
     base_data_path = os.path.dirname(config_path)  # Use same directory as config
-    qdrant_path = os.path.join(base_data_path, "qdrant")
+    sqlite_path = os.path.join(base_data_path, "sqlite", "memory.db")
     
-    # Default configuration
+    # Default SQLite-based configuration (matches Docker image config)
     config = {
         "server": {
             "host": "127.0.0.1",
             "port": 8000,
-            "debug": False,
-            "quick_start": False
+            "debug": False
         },
-        "qdrant": {
-            "path": qdrant_path,
-            "host": "localhost",
-            "port": 6333,
-            "prefer_grpc": False,
-            "index_params": {
-                "m": 16,
-                "ef_construct": 200,
-                "full_scan_threshold": 10000
-            },
-            "optimization": {
-                "deleted_threshold": 0.2,
-                "vacuum_min_vector_number": 1000,
-                "default_segment_number": 0
+        "sqlite": {
+            "path": sqlite_path,
+            "wal_mode": True,
+            "timeout": 30.0,
+            "max_retries": 3,
+            "retry_backoff": 1.0,
+            "pragma_settings": {
+                "journal_mode": "WAL",
+                "synchronous": "NORMAL",
+                "cache_size": 10000,
+                "temp_store": "MEMORY",
+                "mmap_size": 268435456
             }
         },
         "alunai-clarity": {
-            "max_short_term_items": 100,
-            "max_long_term_items": 1000,
-            "max_archival_items": 10000,
+            "max_short_term_items": 1000,
+            "max_long_term_items": 10000,
+            "max_archival_items": 100000,
             "consolidation_interval_hours": 24,
             "short_term_threshold": 0.3,
-            "legacy_file_path": os.path.join(
-                os.path.expanduser("~/.clarity/data"),
-                "memory.json"
-            )
+            "legacy_file_path": os.path.join(base_data_path, "legacy_memory.json")
         },
         "embedding": {
             "default_model": "sentence-transformers/all-MiniLM-L6-v2",
             "dimensions": 384,
-            "cache_dir": os.path.expanduser("~/.clarity/cache")
+            "cache_dir": os.path.join(base_data_path, "cache"),
+            "fast_model": "paraphrase-MiniLM-L3-v2"
+        },
+        "health_monitoring": {
+            "enabled": True,
+            "interval": 60.0,
+            "connection_recovery_timeout": 10.0
         },
         "retrieval": {
             "default_top_k": 5,
@@ -180,13 +180,26 @@ def create_default_config(config_path: str) -> Dict[str, Any]:
             },
             "mcp_awareness": {
                 "enabled": True,
-                "index_tools_on_startup": False,
+                "index_tools_on_startup": True,
                 "proactive_suggestions": True,
                 "suggest_alternatives": True,
                 "context_aware_suggestions": True,
                 "error_resolution_suggestions": True,
                 "max_recent_suggestions": 10
             }
+        },
+        "performance": {
+            "memory_cache_size_mb": 100,
+            "embedding_cache_size": 1000,
+            "connection_pool_size": 5,
+            "query_timeout_ms": 30000,
+            "bulk_insert_batch_size": 100
+        },
+        "logging": {
+            "level": "INFO",
+            "enable_performance_metrics": True,
+            "log_sql_operations": False,
+            "log_embedding_operations": False
         }
     }
     
