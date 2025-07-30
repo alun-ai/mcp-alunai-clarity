@@ -43,7 +43,10 @@ class MemoryMcpServer:
         """
         self.config = config
         self.domain_manager = MemoryDomainManager(config)
-        self.app = FastMCP("mcp-alunai-clarity-server")
+        
+        # Import version from clarity package
+        from clarity import __version__
+        self.app = FastMCP("mcp-alunai-clarity-server", version=__version__)
         self.tool_definitions = MemoryToolDefinitions(self.domain_manager)
         
         # Recursion guard for retrieve_memory calls
@@ -156,7 +159,7 @@ class MemoryMcpServer:
                         timeout=2.0  # Quick check should be very fast
                     )
                     if not connection_ok:
-                        logger.warning("Quick connection check failed - Qdrant connection is down")
+                        logger.warning("Quick connection check failed - Database connection is down")
                         # Get detailed status for better error message
                         try:
                             if hasattr(self.domain_manager, 'persistence_domain') and hasattr(self.domain_manager.persistence_domain, 'get_connection_status'):
