@@ -2,7 +2,7 @@
 
 **An MCP server that provides cognitive abilities to Claude and other MCP-aware systems.**
 
-High-performance Qdrant vector database storage with intelligent memory management, procedural thinking, and real-time MCP server discovery.
+High-performance SQLite vector storage with intelligent memory management, procedural thinking, and real-time MCP server discovery.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Docker](https://img.shields.io/badge/docker-supported-blue.svg)
@@ -11,7 +11,7 @@ High-performance Qdrant vector database storage with intelligent memory manageme
 
 Alunai Clarity provides the following core capabilities:
 
-- **High-performance vector memory storage** using Qdrant database with sub-millisecond search
+- **High-performance vector memory storage** using SQLite with sqlite-vec extension for sub-millisecond search
 - **Procedural and sequential thinking** with 5-stage systematic analysis framework
 - **Automatic memory capture** from "Remember this:" patterns without explicit tool calls
 - **Real-time MCP server discovery** and proactive tool suggestions
@@ -85,7 +85,7 @@ Add to:
 Persistent Storage structure:
 > Note: These will be created automatically in whatever directory you start Claude in.
 - `./.claude/alunai-clarity/config.json` - Configuration
-- `./.claude/alunai-clarity/qdrant/` - Vector database
+- `./.claude/alunai-clarity/sqlite/` - SQLite database files
 - `./.claude/alunai-clarity/cache/` - Model cache
 - `./.claude/alunai-clarity/hooks.json` - Claude Code hooks
 
@@ -121,8 +121,8 @@ This will automatically store memories without explicit tool calls.
 - `get_mcp_tool_info` - Tool information and schemas
 
 ### Performance & Monitoring
-- `qdrant_performance_stats` - Detailed performance metrics
-- `optimize_qdrant_collection` - Database optimization
+- `memory_stats` - Detailed performance metrics and database statistics
+- `sqlite_performance_stats` - SQLite-specific performance monitoring
 - `connection_health_check` - Connection status monitoring
 
 ### AutoCode Intelligence
@@ -137,10 +137,11 @@ This will automatically store memories without explicit tool calls.
 ### Basic Configuration
 ```json
 {
-  "qdrant": {
-    "path": "/app/data/qdrant",
+  "sqlite": {
+    "path": "/app/data/sqlite/memory.db",
+    "wal_mode": true,
     "timeout": 30.0,
-    "prefer_grpc": false
+    "max_retries": 3
   },
   "embedding": {
     "default_model": "sentence-transformers/all-MiniLM-L6-v2",
@@ -154,16 +155,16 @@ This will automatically store memories without explicit tool calls.
 ### Advanced Configuration
 ```json
 {
-  "qdrant": {
-    "init_index_params": {
-      "m": 8,
-      "ef_construct": 64,
-      "full_scan_threshold": 20
-    },
-    "index_params": {
-      "m": 16,
-      "ef_construct": 200,
-      "full_scan_threshold": 50
+  "sqlite": {
+    "path": "/app/data/sqlite/memory.db",
+    "wal_mode": true,
+    "timeout": 30.0,
+    "max_retries": 3,
+    "pragma_settings": {
+      "journal_mode": "WAL",
+      "synchronous": "NORMAL",
+      "cache_size": 10000,
+      "temp_store": "MEMORY"
     }
   },
   "autocode": {

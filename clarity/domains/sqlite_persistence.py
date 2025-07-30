@@ -496,16 +496,26 @@ class SQLiteMemoryPersistence:
                 conditions.append(f"memory_type IN ({placeholders})")
                 params.extend(types)
             
-            # Add additional filters
+            # Add additional filters (only for valid columns to prevent SQL injection)
             if filters:
+                # Define valid filterable columns
+                VALID_FILTER_COLUMNS = {
+                    'tier', 'memory_type', 'importance', 'created_at', 
+                    'updated_at', 'access_count'
+                }
+                
                 for key, value in filters.items():
-                    if isinstance(value, list):
-                        placeholders = ','.join('?' * len(value))
-                        conditions.append(f"{key} IN ({placeholders})")
-                        params.extend(value)
+                    if key in VALID_FILTER_COLUMNS:
+                        if isinstance(value, list):
+                            placeholders = ','.join('?' * len(value))
+                            conditions.append(f"{key} IN ({placeholders})")
+                            params.extend(value)
+                        else:
+                            conditions.append(f"{key} = ?")
+                            params.append(value)
                     else:
-                        conditions.append(f"{key} = ?")
-                        params.append(value)
+                        # Log warning for invalid filter columns but don't fail
+                        logger.warning(f"Invalid filter column ignored: {key}")
             
             if conditions:
                 sql += " WHERE " + " AND ".join(conditions)
